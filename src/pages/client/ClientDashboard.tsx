@@ -11,6 +11,14 @@ import { api } from "@/lib/api";
 interface Ticket {
   id: number;
   estado: string;
+  fecha_hora_entrada?: string;
+  contenedor_info?: {
+    codigo_contenedor?: string;
+    tipo?: string;
+  } | null;
+  ubicacion_info?: {
+    zona_nombre?: string;
+  } | null;
   [key: string]: unknown;
 }
 
@@ -27,7 +35,7 @@ const ClientDashboard = () => {
     const storedName = localStorage.getItem("userName");
     const storedEmail = localStorage.getItem("userEmail");
     
-    if (!storedUserId || storedRole !== "CLIENTE") {
+    if (!storedUserId || storedRole?.toUpperCase() !== "CLIENTE") {
       navigate("/");
       return;
     }
@@ -41,7 +49,7 @@ const ClientDashboard = () => {
     });
   }, [navigate]);
 
-  // Cargar tickets del usuario
+  // Cargar tickets del cliente (a través de sus contenedores)
   useEffect(() => {
     const loadUserTickets = async () => {
       if (!user?.id) {
@@ -51,8 +59,9 @@ const ClientDashboard = () => {
       
       try {
         setLoading(true);
-        console.log('Cargando tickets para usuario ID:', user.id);
-        const tickets = await api.tickets.byUsuario(user.id);
+        console.log('Cargando tickets para cliente ID:', user.id);
+        // Usar byCliente que busca tickets por contenedores del cliente
+        const tickets = await api.tickets.byCliente(user.id as number);
         console.log('Tickets cargados:', tickets);
         console.log('Número de tickets:', tickets?.length || 0);
         setUserTickets(tickets || []);
@@ -70,12 +79,12 @@ const ClientDashboard = () => {
   if (!user) return null;
 
   const activeTickets = userTickets.filter(t => 
-    ["pendiente", "en_proceso", "en_espera"].includes(t.estado?.toLowerCase())
+    ["Activo", "Validado"].includes(t.estado)
   );
   const completedTickets = userTickets.filter(t => 
-    t.estado?.toLowerCase() === "completado"
+    t.estado === "Finalizado"
   );
-  const nextTurno = userTickets.find(t => t.estado?.toLowerCase() === "pendiente");
+  const nextTurno = userTickets.find(t => t.estado === "Activo");
 
   const sidebarItems = [
     { name: "Dashboard", path: "/client/dashboard", icon: LayoutGrid },
@@ -210,17 +219,17 @@ const ClientDashboard = () => {
                         <div>
                           <CardTitle className="text-base">Ticket #{ticket.id}</CardTitle>
                           <CardDescription className="text-sm mt-1">
-                            {ticket.contenedor?.codigo_barras || 'Sin contenedor'}
+                            {ticket.contenedor_info?.codigo_contenedor || 'Sin contenedor'}
                           </CardDescription>
                         </div>
                         <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                          ticket.estado === "completado" ? "bg-green-100 text-green-800" :
-                          ticket.estado === "en_proceso" ? "bg-yellow-100 text-yellow-800" :
-                          ticket.estado === "pendiente" ? "bg-blue-100 text-blue-800" :
-                          ticket.estado === "en_espera" ? "bg-gray-100 text-gray-800" :
+                          ticket.estado === "Finalizado" ? "bg-green-100 text-green-800" :
+                          ticket.estado === "Activo" ? "bg-yellow-100 text-yellow-800" :
+                          ticket.estado === "Validado" ? "bg-blue-100 text-blue-800" :
+                          ticket.estado === "Cancelado" ? "bg-red-100 text-red-800" :
                           "bg-gray-100 text-gray-600"
                         }`}>
-                          {ticket.estado?.replace('_', ' ').toUpperCase()}
+                          {ticket.estado?.toUpperCase() || 'N/A'}
                         </span>
                       </div>
                     </CardHeader>
@@ -228,14 +237,14 @@ const ClientDashboard = () => {
                       <div className="space-y-2 text-sm">
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Contenedor:</span>
-                          <span className="font-medium">
-                            {ticket.contenedor?.numero_contenedor || 'N/A'}
+                          <span className="font-medium font-mono">
+                            {ticket.contenedor_info?.codigo_contenedor || 'N/A'}
                           </span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Tipo:</span>
                           <span className="font-medium">
-                            {ticket.contenedor?.tipo || 'N/A'}
+                            {ticket.contenedor_info?.tipo || 'N/A'}
                           </span>
                         </div>
                         <div className="flex justify-between">
@@ -248,8 +257,8 @@ const ClientDashboard = () => {
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Ubicación:</span>
                           <span className="font-medium">
-                            {ticket.ubicacion ? 
-                              `Zona ${ticket.ubicacion.zona?.nombre || 'N/A'}` : 'Sin asignar'}
+                            {ticket.ubicacion_info?.zona_nombre ? 
+                              `Zona ${ticket.ubicacion_info.zona_nombre}` : 'Sin asignar'}
                           </span>
                         </div>
                       </div>

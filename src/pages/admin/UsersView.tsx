@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import AdminLayout from "@/components/AdminLayout";
 import DataTable from "@/components/DataTable";
 import { Badge } from "@/components/ui/badge";
-import apiFetch from "@/lib/api";
+import { api } from "@/lib/api";
 
 interface User {
   id: number;
@@ -37,7 +37,7 @@ const UsersView = () => {
   useEffect(() => {
     const storedUserId = localStorage.getItem("userId");
     const storedRole = localStorage.getItem("userRole");
-    if (!storedUserId || storedRole !== "ADMINISTRADOR") {
+    if (!storedUserId || storedRole?.toUpperCase() !== "ADMINISTRADOR") {
       navigate("/");
       return;
     }
@@ -46,7 +46,7 @@ const UsersView = () => {
     (async () => {
       setLoading(true);
       try {
-        const usuarios = await apiFetch('/usuarios/');
+        const usuarios = await api.usuarios.list();
         console.log('Usuarios cargados:', usuarios); // Debug
         setData(usuarios || []);
       } catch (err) {
@@ -223,11 +223,11 @@ const UsersView = () => {
                   }
 
                   if (editingId) {
-                    await apiFetch(`/usuarios/${editingId}/`, { method: 'PUT', body: JSON.stringify(payload) });
+                    await api.usuarios.update(editingId, payload);
                   } else {
-                    await apiFetch('/usuarios/', { method: 'POST', body: JSON.stringify(payload) });
+                    await api.usuarios.create(payload as Parameters<typeof api.usuarios.create>[0]);
                   }
-                  const usuarios = await apiFetch('/usuarios/');
+                  const usuarios = await api.usuarios.list();
                   setData(usuarios);
                   setForm({ nombre: '', email: '', password: '', telefono: '', empresa: '', id_rol: '', id_nivel_acceso: '' });
                   setEditingId(null);
@@ -276,7 +276,11 @@ const UsersView = () => {
                   id_nivel_acceso: String(row.id_nivel_acceso) 
                 }); 
               }}>Editar</button>
-              <button className="px-2 py-1 bg-red-600 text-white rounded" onClick={async () => { if (!confirm('Eliminar usuario?')) return; await apiFetch(`/usuarios/${row.id}/`, { method: 'DELETE' }); setData(await apiFetch('/usuarios/')); }}>Eliminar</button>
+              <button className="px-2 py-1 bg-red-600 text-white rounded" onClick={async () => { 
+                if (!confirm('Eliminar usuario?')) return; 
+                await api.usuarios.delete(row.id); 
+                setData(await api.usuarios.list()); 
+              }}>Eliminar</button>
             </div>
           ) }])} data={data} searchKeys={["nombre", "email"]} />
     </AdminLayout>

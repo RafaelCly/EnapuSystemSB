@@ -4,23 +4,25 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import OperatorLayout from "@/components/OperatorLayout";
-import { apiFetch } from "@/lib/api";
+import { api } from "@/lib/api";
 
 interface Ticket {
   id: number;
   estado: string;
   fecha_hora_entrada: string;
   fecha_hora_salida: string | null;
-  contenedor_info: {
-    codigo_barras: string;
-    tipo: string;
-  };
-  ubicacion_info: {
-    zona_nombre: string;
-    fila: number;
-    columna: number;
-    nivel: number;
-  };
+  id_contenedor: number;
+  id_ubicacion: number;
+  contenedor_info?: {
+    codigo_contenedor?: string;
+    tipo?: string;
+  } | null;
+  ubicacion_info?: {
+    zona_nombre?: string;
+    fila?: number;
+    columna?: number;
+    nivel?: number;
+  } | null;
 }
 
 const TurnMonitor = () => {
@@ -40,8 +42,8 @@ const TurnMonitor = () => {
   const loadTickets = async () => {
     setLoading(true);
     try {
-      const data = await apiFetch('/tickets/');
-      setMonitorTickets(data);
+      const data = await api.tickets.listWithDetails();
+      setMonitorTickets(data || []);
     } catch (error) {
       console.error('Error cargando tickets:', error);
     } finally {
@@ -73,18 +75,17 @@ const TurnMonitor = () => {
 
   const getStatusColor = (estado: string) => {
     const colors: Record<string, string> = {
-      "Pendiente": "bg-blue-500 text-white",
-      "En Cola": "bg-gray-500 text-white",
-      "Validado": "bg-blue-600 text-white",
-      "En Proceso": "bg-orange-500 text-white",
-      "Completado": "bg-green-600 text-white",
-      "Retirado": "bg-green-700 text-white"
+      "Activo": "bg-green-500 text-white",
+      "Finalizado": "bg-blue-600 text-white",
+      "Cancelado": "bg-red-500 text-white",
+      "Validado": "bg-orange-500 text-white"
     };
     return colors[estado] || "bg-gray-400 text-white";
   };
 
+  // Mostrar tickets activos (no finalizados ni cancelados)
   const activeTickets = monitorTickets.filter(t => 
-    ["Pendiente", "En Cola", "Validado", "En Proceso"].includes(t.estado)
+    t.estado === "Activo" || t.estado === "Validado"
   );
 
   return (
@@ -123,8 +124,12 @@ const TurnMonitor = () => {
           ) : (
             <div className="space-y-3">
               {activeTickets.map((ticket, index) => {
-                const slotLabel = `${ticket.ubicacion_info.zona_nombre}-${String(ticket.ubicacion_info.fila).padStart(2, '0')}-${String(ticket.ubicacion_info.columna).padStart(2, '0')}`;
-                const fechaEntrada = new Date(ticket.fecha_hora_entrada);
+                const contenedor = ticket.contenedor_info;
+                const ubicacion = ticket.ubicacion_info;
+                const slotLabel = ubicacion 
+                  ? `${ubicacion.zona_nombre || 'N/A'}-${String(ubicacion.fila || 0).padStart(2, '0')}-${String(ubicacion.columna || 0).padStart(2, '0')}`
+                  : 'Sin asignar';
+                const fechaEntrada = ticket.fecha_hora_entrada ? new Date(ticket.fecha_hora_entrada) : null;
                 
                 return (
                   <div 
@@ -143,18 +148,18 @@ const TurnMonitor = () => {
                       
                       <div>
                         <p className="text-xs text-muted-foreground">Contenedor</p>
-                        <p className="font-mono text-sm">{ticket.contenedor_info.codigo_barras}</p>
+                        <p className="font-mono text-sm">{contenedor?.codigo_contenedor || 'N/A'}</p>
                       </div>
                       
                       <div>
                         <p className="text-xs text-muted-foreground">Tipo</p>
-                        <p className="font-semibold">{ticket.contenedor_info.tipo}</p>
+                        <p className="font-semibold">{contenedor?.tipo || 'N/A'}</p>
                       </div>
                       
                       <div>
                         <p className="text-xs text-muted-foreground">Turno</p>
                         <p className="text-sm font-medium">
-                          {fechaEntrada.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })}
+                          {fechaEntrada ? fechaEntrada.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }) : 'N/A'}
                         </p>
                       </div>
                       
@@ -178,35 +183,29 @@ const TurnMonitor = () => {
       </Card>
 
       {/* Estadísticas de tickets */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-blue-500">{monitorTickets.filter(t => t.estado === "Pendiente").length}</p>
-            <p className="text-sm text-muted-foreground">Pendientes</p>
+            <p className="text-2xl font-bold text-green-500">{monitorTickets.filter(t => t.estado === "Activo").length}</p>
+            <p className="text-sm text-muted-foreground">Activos</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-gray-500">{monitorTickets.filter(t => t.estado === "En Cola").length}</p>
-            <p className="text-sm text-muted-foreground">En Cola</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-blue-600">{monitorTickets.filter(t => t.estado === "Validado").length}</p>
+            <p className="text-2xl font-bold text-orange-500">{monitorTickets.filter(t => t.estado === "Validado").length}</p>
             <p className="text-sm text-muted-foreground">Validados</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-orange-500">{monitorTickets.filter(t => t.estado === "En Proceso").length}</p>
-            <p className="text-sm text-muted-foreground">En Proceso</p>
+            <p className="text-2xl font-bold text-blue-600">{monitorTickets.filter(t => t.estado === "Finalizado").length}</p>
+            <p className="text-sm text-muted-foreground">Finalizados</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-green-600">{monitorTickets.filter(t => t.estado === "Completado").length}</p>
-            <p className="text-sm text-muted-foreground">Completados</p>
+            <p className="text-2xl font-bold text-red-500">{monitorTickets.filter(t => t.estado === "Cancelado").length}</p>
+            <p className="text-sm text-muted-foreground">Cancelados</p>
           </CardContent>
         </Card>
       </div>

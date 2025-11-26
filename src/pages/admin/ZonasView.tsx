@@ -2,13 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '@/components/AdminLayout';
 import DataTable from '@/components/DataTable';
-import { apiFetch } from '@/lib/api';
+import { api } from '@/lib/api';
 
 interface Zona {
   id: number;
   nombre: string;
   capacidad: number;
-  estado: string;
+  activa: boolean;
+  descripcion?: string;
   [key: string]: unknown;
 }
 
@@ -19,7 +20,7 @@ const ZonasView: React.FC = () => {
   const [form, setForm] = useState({
     nombre: '',
     capacidad: '',
-    estado: 'activa'
+    activa: true
   });
   const [editingId, setEditingId] = useState<number | null>(null);
 
@@ -35,7 +36,7 @@ const ZonasView: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const zonas = await apiFetch('/zonas/');
+      const zonas = await api.zonas.list();
       setData(zonas || []);
     } catch (error) {
       console.error('Error cargando zonas:', error);
@@ -58,25 +59,19 @@ const ZonasView: React.FC = () => {
       const payload = {
         nombre: form.nombre,
         capacidad: Number(form.capacidad),
-        estado: form.estado
+        activa: form.activa
       };
 
       if (editingId) {
-        await apiFetch(`/zonas/${editingId}/`, {
-          method: 'PUT',
-          body: JSON.stringify(payload),
-        });
+        await api.zonas.update(editingId, payload);
         alert('Zona actualizada exitosamente');
       } else {
-        await apiFetch('/zonas/', {
-          method: 'POST',
-          body: JSON.stringify(payload),
-        });
+        await api.zonas.create(payload);
         alert('Zona creada exitosamente');
       }
 
       await loadData();
-      setForm({ nombre: '', capacidad: '', estado: 'activa' });
+      setForm({ nombre: '', capacidad: '', activa: true });
       setEditingId(null);
     } catch (err: unknown) {
       console.error('Error guardando zona:', err);
@@ -91,7 +86,7 @@ const ZonasView: React.FC = () => {
     if (!confirm('¿Eliminar esta zona? Se eliminarán también los slots asociados.')) return;
 
     try {
-      await apiFetch(`/zonas/${id}/`, { method: 'DELETE' });
+      await api.zonas.delete(id);
       await loadData();
       alert('Zona eliminada exitosamente');
     } catch (error) {
@@ -112,7 +107,15 @@ const ZonasView: React.FC = () => {
     { key: 'id', label: 'ID' },
     { key: 'nombre', label: 'Nombre' },
     { key: 'capacidad', label: 'Capacidad' },
-    { key: 'estado', label: 'Estado' },
+    { 
+      key: 'activa', 
+      label: 'Estado',
+      render: (value: unknown) => (
+        <span className={`px-2 py-1 rounded-full text-xs font-medium ${value ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
+          {value ? 'ACTIVA' : 'INACTIVA'}
+        </span>
+      )
+    },
   ];
 
   return (
@@ -160,12 +163,11 @@ const ZonasView: React.FC = () => {
                   <label className="block text-sm font-medium mb-1">Estado</label>
                   <select
                     className="w-full p-2 border rounded"
-                    value={form.estado}
-                    onChange={(e) => setForm({ ...form, estado: e.target.value })}
+                    value={form.activa ? 'true' : 'false'}
+                    onChange={(e) => setForm({ ...form, activa: e.target.value === 'true' })}
                   >
-                    <option value="activa">Activa</option>
-                    <option value="inactiva">Inactiva</option>
-                    <option value="mantenimiento">Mantenimiento</option>
+                    <option value="true">Activa</option>
+                    <option value="false">Inactiva</option>
                   </select>
                 </div>
               </div>
@@ -184,7 +186,7 @@ const ZonasView: React.FC = () => {
                     type="button"
                     onClick={() => {
                       setEditingId(null);
-                      setForm({ nombre: '', capacidad: '', estado: 'activa' });
+                      setForm({ nombre: '', capacidad: '', activa: true });
                     }}
                     className="px-6 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
                   >
@@ -209,7 +211,7 @@ const ZonasView: React.FC = () => {
                         setForm({
                           nombre: row.nombre,
                           capacidad: String(row.capacidad),
-                          estado: row.estado || 'activa',
+                          activa: row.activa ?? true,
                         });
                       }}
                     >

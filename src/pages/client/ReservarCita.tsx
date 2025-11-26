@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Calendar, Package, Ship, Clock } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Sidebar from '@/components/Sidebar';
-import { apiFetch } from '@/lib/api';
+import { api } from '@/lib/api';
 
 interface Contenedor {
   id: number;
@@ -38,7 +38,7 @@ const ReservarCita: React.FC = () => {
     const storedRole = localStorage.getItem('userRole');
     const storedUserId = localStorage.getItem('userId');
     
-    if (storedRole !== 'CLIENTE') {
+    if (storedRole?.toUpperCase() !== 'CLIENTE') {
       navigate('/');
       return;
     }
@@ -54,8 +54,8 @@ const ReservarCita: React.FC = () => {
     setLoading(true);
     try {
       const [contenedoresData, buquesData] = await Promise.all([
-        apiFetch('/contenedores/'),
-        apiFetch('/buques/')
+        api.contenedores.list(),
+        api.buques.list()
       ]);
       
       setContenedores(contenedoresData || []);
@@ -100,25 +100,18 @@ const ReservarCita: React.FC = () => {
     try {
       // 1. Crear la cita
       const citaPayload = {
-        fecha_envio: form.fecha_envio,
-        fecha_recojo: form.fecha_recojo,
-        duracion_viaje_dias: Number(form.duracion_viaje_dias),
-        estado: 'reservada',
-        id_cliente: clienteId
+        fecha_inicio_horario: form.fecha_envio,
+        fecha_salida_horario: form.fecha_recojo,
+        estado: 'Programada',
+        observaciones: `Reserva de cliente ${clienteId}`
       };
 
-      const citaCreada = await apiFetch('/citas-recojo/', {
-        method: 'POST',
-        body: JSON.stringify(citaPayload)
-      });
+      const citaCreada = await api.citas.create(citaPayload);
 
       // 2. Actualizar el contenedor con la cita
-      await apiFetch(`/contenedores/${form.id_contenedor}/`, {
-        method: 'PATCH',
-        body: JSON.stringify({
-          id_cita_recojo: citaCreada.id,
-          id_buque: Number(form.id_buque)
-        })
+      await api.contenedores.update(Number(form.id_contenedor), {
+        id_cita_recojo: citaCreada.id,
+        id_buque: Number(form.id_buque)
       });
 
       alert('¡Reserva creada exitosamente! El operario escaneará el código de barras al recibir el contenedor.');

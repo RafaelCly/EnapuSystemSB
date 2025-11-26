@@ -42,7 +42,7 @@ const NewTicket = () => {
     const storedUserId = localStorage.getItem("userId");
     const storedRole = localStorage.getItem("userRole");
     
-    if (!storedUserId || storedRole !== "CLIENTE") {
+    if (!storedUserId || storedRole?.toUpperCase() !== "CLIENTE") {
       navigate("/");
       return;
     }

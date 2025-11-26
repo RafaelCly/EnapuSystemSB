@@ -242,22 +242,82 @@ export const usuarios = {
 // API: TICKETS
 // =====================================================================
 
+// Helper para enriquecer tickets con datos relacionados
+async function enrichTickets(ticketsData: any[]) {
+  if (!ticketsData || ticketsData.length === 0) return []
+  
+  // Obtener IDs únicos
+  const contenedorIds = [...new Set(ticketsData.map(t => t.id_contenedor).filter(Boolean))]
+  const ubicacionIds = [...new Set(ticketsData.map(t => t.id_ubicacion).filter(Boolean))]
+  
+  // Obtener contenedores
+  let contenedoresMap: Record<number, any> = {}
+  if (contenedorIds.length > 0) {
+    const { data: contenedoresData } = await supabase
+      .from('contenedor')
+      .select('*')
+      .in('id', contenedorIds)
+    contenedoresData?.forEach(c => { contenedoresMap[c.id] = c })
+  }
+  
+  // Obtener ubicaciones con zonas
+  let ubicacionesMap: Record<number, any> = {}
+  if (ubicacionIds.length > 0) {
+    const { data: ubicacionesData } = await supabase
+      .from('ubicacion_slot')
+      .select('*')
+      .in('id', ubicacionIds)
+    
+    // Obtener zonas para las ubicaciones
+    const zonaIds = [...new Set(ubicacionesData?.map(u => u.id_zona).filter(Boolean) || [])]
+    let zonasMap: Record<number, any> = {}
+    if (zonaIds.length > 0) {
+      const { data: zonasData } = await supabase
+        .from('zona')
+        .select('*')
+        .in('id', zonaIds)
+      zonasData?.forEach(z => { zonasMap[z.id] = z })
+    }
+    
+    ubicacionesData?.forEach(u => {
+      ubicacionesMap[u.id] = {
+        ...u,
+        zona_nombre: zonasMap[u.id_zona]?.nombre || 'N/A'
+      }
+    })
+  }
+  
+  // Enriquecer tickets
+  return ticketsData.map(ticket => ({
+    ...ticket,
+    contenedor_info: contenedoresMap[ticket.id_contenedor] || null,
+    ubicacion_info: ubicacionesMap[ticket.id_ubicacion] || null
+  }))
+}
+
 export const tickets = {
-  // Obtener todos los tickets
+  // Obtener todos los tickets (básico)
   async list() {
     logDev('Obteniendo lista de tickets...')
     const { data, error } = await supabase
       .from('ticket')
-      .select(`
-        *,
-        Usuario (*),
-        Contenedor (*),
-        Ubicacion_slot (*, Zona (*))
-      `)
+      .select('*')
       .order('fecha_hora_entrada', { ascending: false })
     
     handleError(error, 'Listar tickets')
     return data
+  },
+
+  // Obtener todos los tickets con datos enriquecidos
+  async listWithDetails() {
+    logDev('Obteniendo lista de tickets con detalles...')
+    const { data, error } = await supabase
+      .from('ticket')
+      .select('*')
+      .order('fecha_hora_entrada', { ascending: false })
+    
+    handleError(error, 'Listar tickets')
+    return enrichTickets(data || [])
   },
 
   // Obtener un ticket por ID
@@ -265,12 +325,7 @@ export const tickets = {
     logDev(`Obteniendo ticket #${id}...`)
     const { data, error } = await supabase
       .from('ticket')
-      .select(`
-        *,
-        Usuario (*),
-        Contenedor (*),
-        Ubicacion_slot (*, Zona (*))
-      `)
+      .select('*')
       .eq('id', id)
       .single()
     
@@ -322,12 +377,7 @@ export const tickets = {
     logDev(`Obteniendo tickets con estado: ${estado}`)
     const { data, error } = await supabase
       .from('ticket')
-      .select(`
-        *,
-        Usuario (*),
-        Contenedor (*),
-        Ubicacion_slot (*, Zona (*))
-      `)
+      .select('*')
       .eq('estado', estado)
       .order('fecha_hora_entrada', { ascending: false })
     
@@ -335,22 +385,50 @@ export const tickets = {
     return data
   },
 
-  // Obtener tickets por usuario
+  // Obtener tickets por usuario (operario que procesó)
   async byUsuario(usuarioId: number) {
     logDev(`Obteniendo tickets del usuario #${usuarioId}`)
     const { data, error } = await supabase
       .from('ticket')
-      .select(`
-        *,
-        Usuario (*),
-        Contenedor (*),
-        Ubicacion_slot (*, Zona (*))
-      `)
+      .select('*')
       .eq('id_usuario', usuarioId)
       .order('fecha_hora_entrada', { ascending: false })
     
     handleError(error, 'Obtener tickets por usuario')
-    return data
+    return enrichTickets(data || [])
+  },
+
+  // Obtener tickets por cliente (a través de sus contenedores)
+  async byCliente(clienteId: number) {
+    logDev(`Obteniendo tickets del cliente #${clienteId}`)
+    
+    // Primero obtener los contenedores del cliente
+    const { data: contenedoresCliente, error: contError } = await supabase
+      .from('contenedor')
+      .select('id')
+      .eq('id_cliente', clienteId)
+    
+    if (contError) {
+      handleError(contError, 'Obtener contenedores del cliente')
+      return []
+    }
+    
+    if (!contenedoresCliente || contenedoresCliente.length === 0) {
+      logDev('El cliente no tiene contenedores asignados')
+      return []
+    }
+    
+    const contenedorIds = contenedoresCliente.map(c => c.id)
+    
+    // Luego obtener los tickets de esos contenedores
+    const { data, error } = await supabase
+      .from('ticket')
+      .select('*')
+      .in('id_contenedor', contenedorIds)
+      .order('fecha_hora_entrada', { ascending: false })
+    
+    handleError(error, 'Obtener tickets del cliente')
+    return enrichTickets(data || [])
   },
 
   // Cambiar estado de un ticket
@@ -384,7 +462,7 @@ export const contenedores = {
     logDev('Obteniendo lista de contenedores...')
     const { data, error } = await supabase
       .from('contenedor')
-      .select('*, Buque (*), Cita_recojo (*)')
+      .select('*')
       .order('id', { ascending: false })
     
     handleError(error, 'Listar contenedores')
@@ -395,12 +473,25 @@ export const contenedores = {
     logDev(`Obteniendo contenedor #${id}...`)
     const { data, error } = await supabase
       .from('contenedor')
-      .select('*, Buque (*), Cita_recojo (*)')
+      .select('*')
       .eq('id', id)
       .single()
     
     handleError(error, 'Obtener contenedor')
     return data
+  },
+
+  // Obtener contenedores por cliente
+  async byCliente(clienteId: number) {
+    logDev(`Obteniendo contenedores del cliente #${clienteId}...`)
+    const { data, error } = await supabase
+      .from('contenedor')
+      .select('*')
+      .eq('id_cliente', clienteId)
+      .order('id', { ascending: false })
+    
+    handleError(error, 'Obtener contenedores del cliente')
+    return data || []
   },
 
   async create(contenedor: Omit<Contenedor, 'id'>) {
@@ -450,7 +541,6 @@ export const zonas = {
     const { data, error } = await supabase
       .from('zona')
       .select('*')
-      .eq('activa', true)
       .order('id', { ascending: true })
     
     handleError(error, 'Listar zonas')
@@ -468,6 +558,42 @@ export const zonas = {
     handleError(error, 'Obtener zona')
     return data as Zona
   },
+
+  async create(zona: Omit<Zona, 'id'>) {
+    logDev('Creando nueva zona...', zona)
+    const { data, error } = await supabase
+      .from('zona')
+      .insert([zona])
+      .select()
+      .single()
+    
+    handleError(error, 'Crear zona')
+    return data as Zona
+  },
+
+  async update(id: number, zona: Partial<Zona>) {
+    logDev(`Actualizando zona #${id}...`, zona)
+    const { data, error } = await supabase
+      .from('zona')
+      .update(zona)
+      .eq('id', id)
+      .select()
+      .single()
+    
+    handleError(error, 'Actualizar zona')
+    return data as Zona
+  },
+
+  async delete(id: number) {
+    logDev(`Eliminando zona #${id}...`)
+    const { error } = await supabase
+      .from('zona')
+      .delete()
+      .eq('id', id)
+    
+    handleError(error, 'Eliminar zona')
+    return { success: true }
+  },
 }
 
 // =====================================================================
@@ -479,7 +605,7 @@ export const slots = {
     logDev('Obteniendo lista de slots...')
     const { data, error } = await supabase
       .from('ubicacion_slot')
-      .select('*, Zona (*)')
+      .select('*')
       .order('id', { ascending: true })
     
     handleError(error, 'Listar slots')
@@ -490,11 +616,23 @@ export const slots = {
     logDev(`Obteniendo slot #${id}...`)
     const { data, error } = await supabase
       .from('ubicacion_slot')
-      .select('*, Zona (*)')
+      .select('*')
       .eq('id', id)
       .single()
     
     handleError(error, 'Obtener slot')
+    return data
+  },
+
+  async create(slot: Omit<UbicacionSlot, 'id'>) {
+    logDev('Creando nuevo slot...', slot)
+    const { data, error } = await supabase
+      .from('ubicacion_slot')
+      .insert([slot])
+      .select()
+      .single()
+    
+    handleError(error, 'Crear slot')
     return data
   },
 
@@ -511,12 +649,23 @@ export const slots = {
     return data
   },
 
+  async delete(id: number) {
+    logDev(`Eliminando slot #${id}...`)
+    const { error } = await supabase
+      .from('ubicacion_slot')
+      .delete()
+      .eq('id', id)
+    
+    handleError(error, 'Eliminar slot')
+    return { success: true }
+  },
+
   // Obtener slots disponibles (vacíos)
   async disponibles() {
     logDev('Obteniendo slots disponibles...')
     const { data, error } = await supabase
       .from('ubicacion_slot')
-      .select('*, Zona (*)')
+      .select('*')
       .eq('estado', 'Vacio')
       .order('id', { ascending: true })
     
@@ -535,7 +684,6 @@ export const buques = {
     const { data, error } = await supabase
       .from('buque')
       .select('*')
-      .eq('activo', true)
       .order('nombre', { ascending: true })
     
     handleError(error, 'Listar buques')
@@ -610,7 +758,7 @@ export const facturas = {
     logDev('Obteniendo lista de facturas...')
     const { data, error } = await supabase
       .from('factura')
-      .select('*, Ticket (*)')
+      .select('*')
       .order('fecha_emision', { ascending: false })
     
     handleError(error, 'Listar facturas')
@@ -621,7 +769,7 @@ export const facturas = {
     logDev(`Obteniendo factura #${id}...`)
     const { data, error } = await supabase
       .from('factura')
-      .select('*, Ticket (*)')
+      .select('*')
       .eq('id', id)
       .single()
     
@@ -645,7 +793,7 @@ export const facturas = {
     logDev(`Obteniendo facturas con estado: ${estado}`)
     const { data, error } = await supabase
       .from('factura')
-      .select('*, Ticket (*)')
+      .select('*')
       .eq('estado', estado)
       .order('fecha_emision', { ascending: false })
     
@@ -680,6 +828,31 @@ export const citas = {
     
     handleError(error, 'Obtener citas programadas')
     return data as CitaRecojo[]
+  },
+
+  async create(cita: Partial<CitaRecojo>) {
+    logDev('Creando nueva cita de recojo...', cita)
+    const { data, error } = await supabase
+      .from('cita_recojo')
+      .insert([cita])
+      .select()
+      .single()
+    
+    handleError(error, 'Crear cita de recojo')
+    return data as CitaRecojo
+  },
+
+  async update(id: number, cita: Partial<CitaRecojo>) {
+    logDev(`Actualizando cita #${id}...`, cita)
+    const { data, error } = await supabase
+      .from('cita_recojo')
+      .update(cita)
+      .eq('id', id)
+      .select()
+      .single()
+    
+    handleError(error, 'Actualizar cita de recojo')
+    return data as CitaRecojo
   },
 }
 

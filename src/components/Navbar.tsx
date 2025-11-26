@@ -35,11 +35,9 @@ const Navbar = ({ userRole, userName, notifications = 0 }: NavbarProps) => {
     return labels[role] || role;
   };
 
-  const getRoleBadgeVariant = (role: string) => {
-    if (role === "ADMIN") return "secondary";
-    if (role === "CLIENTE") return "secondary";
-    if (role === "OPERARIO") return "secondary";
-    return "outline";
+  const getRoleBadgeClass = (role: string) => {
+    // Todos los roles tendrán el mismo estilo: fondo blanco con texto oscuro y borde
+    return "bg-white text-primary border-0 font-medium";
   };
 
   return (
@@ -63,7 +61,7 @@ const Navbar = ({ userRole, userName, notifications = 0 }: NavbarProps) => {
 
           {/* Desktop menu */}
           <div className="hidden md:flex md:items-center md:gap-4">
-            <Badge variant={getRoleBadgeVariant(userRole)} className="px-3 py-1">
+            <Badge className={`px-3 py-1 ${getRoleBadgeClass(userRole)}`}>
               {getRoleLabel(userRole)}
             </Badge>
             
@@ -130,7 +128,7 @@ const Navbar = ({ userRole, userName, notifications = 0 }: NavbarProps) => {
               <span className="text-sm">{userName}</span>
             </div>
             <div className="py-2">
-              <Badge variant={getRoleBadgeVariant(userRole)}>
+              <Badge className={`px-3 py-1 ${getRoleBadgeClass(userRole)}`}>
                 {getRoleLabel(userRole)}
               </Badge>
             </div>

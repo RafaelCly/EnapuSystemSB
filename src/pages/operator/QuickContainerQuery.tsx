@@ -7,17 +7,17 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import OperatorLayout from "@/components/OperatorLayout";
-import { apiFetch } from "@/lib/api";
+import { api } from "@/lib/api";
 
 interface Contenedor {
   id: number;
-  codigo_barras: string;
-  numero_contenedor: string;
+  codigo_contenedor: string;
   tipo: string;
   peso: number;
   dimensiones: string;
-  buque_nombre: string;
-  cita_info: {
+  id_buque?: number;
+  buque_nombre?: string;
+  cita_info?: {
     fecha_envio: string;
     fecha_recojo: string;
     cliente: string;
@@ -26,8 +26,7 @@ interface Contenedor {
 }
 
 interface ContainerInfo extends Contenedor {
-  buque_nombre?: string;
-  cita_info?: Record<string, unknown>;
+  ticket?: Record<string, unknown>;
   [key: string]: unknown;
 }
 
@@ -47,14 +46,14 @@ const QuickContainerQuery = () => {
   const loadContenedoresPendientes = async () => {
     try {
       const [contenedores, tickets] = await Promise.all([
-        apiFetch('/contenedores/'),
-        apiFetch('/tickets/')
+        api.contenedores.list(),
+        api.tickets.list()
       ]);
 
-      // Filtrar solo contenedores con cita y sin ticket
-      const pendientes = contenedores.filter((c: Contenedor) => {
-        const tieneTicket = tickets.some((t: Record<string, unknown>) => t.id_contenedor === c.id);
-        return c.cita_info && !tieneTicket;
+      // Filtrar contenedores sin ticket (pendientes de validar)
+      const pendientes = (contenedores || []).filter((c: Contenedor) => {
+        const tieneTicket = (tickets || []).some((t: Record<string, unknown>) => t.id_contenedor === c.id);
+        return !tieneTicket;
       });
 
       setContenedoresPendientes(pendientes);
@@ -65,15 +64,15 @@ const QuickContainerQuery = () => {
 
   const handleSearch = async () => {
     if (!containerId.trim()) {
-      toast.error("Por favor ingrese un código de barras");
+      toast.error("Por favor ingrese un código de contenedor");
       return;
     }
 
     setLoading(true);
     try {
-      const contenedores = await apiFetch('/contenedores/');
-      const container = contenedores.find((c: Contenedor) => 
-        c.codigo_barras?.toLowerCase() === containerId.trim().toLowerCase()
+      const contenedores = await api.contenedores.list();
+      const container = (contenedores || []).find((c: Contenedor) => 
+        c.codigo_contenedor?.toLowerCase() === containerId.trim().toLowerCase()
       );
 
       if (!container) {
@@ -85,8 +84,8 @@ const QuickContainerQuery = () => {
       }
 
       // Verificar si tiene ticket
-      const tickets = await apiFetch('/tickets/');
-      const relatedTicket = tickets.find((t: Record<string, unknown>) => t.id_contenedor === container.id);
+      const tickets = await api.tickets.list();
+      const relatedTicket = (tickets || []).find((t: Record<string, unknown>) => t.id_contenedor === container.id);
 
       setContainerInfo({ ...container, ticket: relatedTicket });
       toast.success("Contenedor encontrado");
@@ -102,7 +101,7 @@ const QuickContainerQuery = () => {
     <OperatorLayout userName={userName}>
       <div className="mb-6">
         <h1 className="text-3xl font-bold mb-2">Consulta de Contenedores</h1>
-        <p className="text-muted-foreground">Ver contenedores pendientes de validar y buscar por código de barras</p>
+        <p className="text-muted-foreground">Ver contenedores pendientes de validar y buscar por código de contenedor</p>
       </div>
 
       {/* Lista de contenedores pendientes */}
@@ -125,24 +124,20 @@ const QuickContainerQuery = () => {
               <table className="w-full">
                 <thead>
                   <tr className="border-b">
-                    <th className="text-left p-3 font-semibold">Código Barras</th>
-                    <th className="text-left p-3 font-semibold">Número</th>
-                    <th className="text-left p-3 font-semibold">Cliente</th>
-                    <th className="text-left p-3 font-semibold">Buque</th>
+                    <th className="text-left p-3 font-semibold">Código</th>
                     <th className="text-left p-3 font-semibold">Tipo</th>
-                    <th className="text-left p-3 font-semibold">Fecha Recojo</th>
+                    <th className="text-left p-3 font-semibold">Dimensiones</th>
+                    <th className="text-left p-3 font-semibold">Peso</th>
                     <th className="text-left p-3 font-semibold">Estado</th>
                   </tr>
                 </thead>
                 <tbody>
                   {contenedoresPendientes.map((cont) => (
                     <tr key={cont.id} className="border-b hover:bg-muted/50">
-                      <td className="p-3 font-mono text-sm">{cont.codigo_barras}</td>
-                      <td className="p-3">{cont.numero_contenedor}</td>
-                      <td className="p-3">{cont.cita_info?.cliente || '-'}</td>
-                      <td className="p-3">{cont.buque_nombre}</td>
+                      <td className="p-3 font-mono text-sm">{cont.codigo_contenedor}</td>
                       <td className="p-3">{cont.tipo}</td>
-                      <td className="p-3">{cont.cita_info?.fecha_recojo || '-'}</td>
+                      <td className="p-3">{cont.dimensiones}</td>
+                      <td className="p-3">{cont.peso} kg</td>
                       <td className="p-3">
                         <Badge className="bg-warning text-warning-foreground">
                           Pendiente
@@ -165,14 +160,14 @@ const QuickContainerQuery = () => {
             <Search className="h-5 w-5" />
             Buscar Contenedor
           </CardTitle>
-          <CardDescription>Busca información de cualquier contenedor por código de barras</CardDescription>
+          <CardDescription>Busca información de cualquier contenedor por su código</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="containerInput">Código de Barras</Label>
+            <Label htmlFor="containerInput">Código de Contenedor</Label>
             <Input
               id="containerInput"
-              placeholder="Ej: CONT-2024-001"
+              placeholder="Ej: MSCU1234567, EISU9998877..."
               value={containerId}
               onChange={(e) => setContainerId(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSearch()}
@@ -195,16 +190,11 @@ const QuickContainerQuery = () => {
           {containerInfo ? (
             <div className="space-y-4">
               <div className="p-4 bg-primary/10 rounded-lg border-2 border-primary">
-                <p className="text-sm font-medium text-muted-foreground mb-1">Código de Barras</p>
-                <p className="text-lg font-bold font-mono">{containerInfo.codigo_barras}</p>
+                <p className="text-sm font-medium text-muted-foreground mb-1">Código Contenedor</p>
+                <p className="text-lg font-bold font-mono">{containerInfo.codigo_contenedor}</p>
               </div>
 
               <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Número:</span>
-                  <span className="font-medium">{containerInfo.numero_contenedor}</span>
-                </div>
-
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Tipo:</span>
                   <span className="font-medium">{containerInfo.tipo}</span>
@@ -218,11 +208,6 @@ const QuickContainerQuery = () => {
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Peso:</span>
                   <span className="font-medium">{containerInfo.peso} kg</span>
-                </div>
-
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Buque:</span>
-                  <span className="font-medium">{containerInfo.buque_nombre}</span>
                 </div>
 
                 {containerInfo.cita_info && (

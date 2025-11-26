@@ -33,7 +33,7 @@ const MyTickets = () => {
     const storedRole = localStorage.getItem("userRole");
     const storedName = localStorage.getItem("userName");
     
-    if (!storedUserId || storedRole !== "CLIENTE") {
+    if (!storedUserId || storedRole?.toUpperCase() !== "CLIENTE") {
       navigate("/");
       return;
     }
@@ -45,14 +45,15 @@ const MyTickets = () => {
     });
   }, [navigate]);
 
-  // Cargar tickets del usuario
+  // Cargar tickets del cliente (a través de sus contenedores)
   useEffect(() => {
     const loadUserTickets = async () => {
       if (!user?.id) return;
       
       try {
         setLoading(true);
-        const tickets = await api.tickets.byUsuario(user.id);
+        // Usar byCliente que busca tickets por contenedores del cliente
+        const tickets = await api.tickets.byCliente(user.id);
         console.log('Tickets cargados en MyTickets:', tickets);
         setUserTickets(tickets || []);
       } catch (error) {
@@ -77,7 +78,7 @@ const MyTickets = () => {
         const info = value as Record<string, unknown> | undefined;
         return (
           <span className="font-mono text-sm">
-            {(info?.codigo_barras as string) || (info?.numero_contenedor as string) || 'N/A'}
+            {(info?.codigo_contenedor as string) || 'N/A'}
           </span>
         );
       }
@@ -95,7 +96,7 @@ const MyTickets = () => {
       label: "Ubicación",
       render: (value: unknown) => {
         const info = value as Record<string, unknown> | undefined;
-        return info ? `Zona ${info.zona_nombre as string}` : 'Sin asignar';
+        return info?.zona_nombre ? `Zona ${info.zona_nombre as string}` : 'Sin asignar';
       }
     },
     { 
@@ -103,15 +104,16 @@ const MyTickets = () => {
       label: "Estado",
       render: (value: string) => {
         const variants: Record<string, string> = {
-          "pendiente": "bg-blue-100 text-blue-800",
-          "en_proceso": "bg-yellow-100 text-yellow-800",
-          "en_espera": "bg-gray-100 text-gray-800",
-          "completado": "bg-green-100 text-green-800",
-          "cancelado": "bg-red-100 text-red-800"
+          "Activo": "bg-green-500 text-white",
+          "Validado": "bg-blue-500 text-white",
+          "Finalizado": "bg-gray-500 text-white",
+          "Cancelado": "bg-red-500 text-white",
+          "En Cola": "bg-yellow-500 text-white",
+          "Completado": "bg-emerald-500 text-white"
         };
         return (
-          <Badge className={variants[value?.toLowerCase()] || "bg-gray-100 text-gray-600"}>
-            {value?.replace('_', ' ').toUpperCase() || 'N/A'}
+          <Badge className={variants[value] || "bg-gray-400 text-white"}>
+            {value?.toUpperCase() || 'N/A'}
           </Badge>
         );
       }

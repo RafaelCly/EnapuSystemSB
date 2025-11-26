@@ -2,23 +2,22 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '@/components/AdminLayout';
 import DataTable from '@/components/DataTable';
-import { apiFetch } from '@/lib/api';
+import { api } from '@/lib/api';
 
 interface Contenedor {
   id: number;
-  codigo_barras: string;
-  numero_contenedor: string;
+  codigo_contenedor: string;
   dimensiones: string;
   tipo: string;
   peso: number;
-  estado: string;
+  id_buque: number;
   [key: string]: unknown;
 }
 
 interface Buque {
   id: number;
   nombre: string;
-  codigo_omi: string;
+  linea_naviera: string;
   [key: string]: unknown;
 }
 
@@ -28,10 +27,9 @@ const ContenedoresView: React.FC = () => {
   const [buques, setBuques] = useState<Buque[]>([]);
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
-    codigo_barras: '',
-    numero_contenedor: '',
-    dimensiones: '20x8x8',
-    tipo: '20ft',
+    codigo_contenedor: '',
+    dimensiones: '12.19x2.44x2.59',
+    tipo: 'Seco',
     peso: '',
     id_buque: ''
   });
@@ -50,8 +48,8 @@ const ContenedoresView: React.FC = () => {
     setLoading(true);
     try {
       const [contenedores, buquesData] = await Promise.all([
-        apiFetch('/contenedores/'),
-        apiFetch('/buques/')
+        api.contenedores.list(),
+        api.buques.list()
       ]);
       setData(contenedores || []);
       setBuques(buquesData || []);
@@ -67,14 +65,13 @@ const ContenedoresView: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!form.numero_contenedor || !form.tipo || !form.peso) {
+    if (!form.codigo_contenedor || !form.tipo || !form.peso) {
       alert('Por favor complete todos los campos obligatorios');
       return;
     }    setLoading(true);
     try {
-      const payload: Partial<Contenedor> & {id_buque: number} = {
-        codigo_barras: form.codigo_barras,
-        numero_contenedor: form.numero_contenedor,
+      const payload = {
+        codigo_contenedor: form.codigo_contenedor,
         dimensiones: form.dimensiones,
         tipo: form.tipo,
         peso: Number(form.peso),
@@ -82,19 +79,13 @@ const ContenedoresView: React.FC = () => {
       };
 
       if (editingId) {
-        await apiFetch(`/contenedores/${editingId}/`, {
-          method: 'PUT',
-          body: JSON.stringify(payload),
-        });
+        await api.contenedores.update(editingId, payload);
         alert('Contenedor actualizado exitosamente');
       } else {
-        await apiFetch('/contenedores/', {
-          method: 'POST',
-          body: JSON.stringify(payload),
-        });
+        await api.contenedores.create(payload);
         alert('Contenedor creado exitosamente');
       }      await loadData();
-      setForm({ codigo_barras: '', numero_contenedor: '', dimensiones: '20x8x8', tipo: '20ft', peso: '', id_buque: '' });
+      setForm({ codigo_contenedor: '', dimensiones: '12.19x2.44x2.59', tipo: 'Seco', peso: '', id_buque: '' });
       setEditingId(null);
     } catch (err: unknown) {
       console.error('Error guardando contenedor:', err);
@@ -109,7 +100,7 @@ const ContenedoresView: React.FC = () => {
     if (!confirm('¿Eliminar este contenedor?')) return;
 
     try {
-      await apiFetch(`/contenedores/${id}/`, { method: 'DELETE' });
+      await api.contenedores.delete(id);
       await loadData();
       alert('Contenedor eliminado exitosamente');
     } catch (error) {
@@ -121,11 +112,38 @@ const ContenedoresView: React.FC = () => {
   const userName = localStorage.getItem('userName') || 'Admin';
   const columns: Array<{key: string; label: string; render?: (value: unknown, row: Contenedor) => React.ReactNode}> = [
     { key: 'id', label: 'ID' },
-    { key: 'codigo_barras', label: 'Código Barras' },
-    { key: 'numero_contenedor', label: 'Número' },
+    { 
+      key: 'codigo_contenedor', 
+      label: 'Código',
+      render: (value: unknown) => (
+        <span className="font-mono text-sm font-semibold">{String(value) || 'N/A'}</span>
+      )
+    },
     { key: 'dimensiones', label: 'Dimensiones' },
-    { key: 'tipo', label: 'Tipo' },
-    { key: 'peso', label: 'Peso (kg)' },
+    { 
+      key: 'tipo', 
+      label: 'Tipo',
+      render: (value: unknown) => {
+        const tipos: Record<string, string> = {
+          "Seco": "bg-blue-500 text-white",
+          "Refrigerado": "bg-cyan-500 text-white",
+          "Open Top": "bg-purple-500 text-white",
+          "Flat Rack": "bg-orange-500 text-white",
+          "Tanque": "bg-amber-500 text-white"
+        };
+        return (
+          <span className={`px-2 py-1 rounded-full text-xs font-medium ${tipos[String(value)] || "bg-gray-400 text-white"}`}>
+            {String(value) || 'N/A'}
+          </span>
+        );
+      }
+    },
+    { 
+      key: 'peso', 
+      label: 'Peso (kg)',
+      render: (value: unknown) => value ? `${Number(value).toLocaleString()} kg` : 'N/A'
+    },
+    { key: 'id_buque', label: 'Buque ID' },
   ];
 
   return (
@@ -145,26 +163,13 @@ const ContenedoresView: React.FC = () => {
             <form onSubmit={handleSubmit}>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1">Código Barras * (único)</label>
+                  <label className="block text-sm font-medium mb-1">Código Contenedor *</label>
                   <input
                     type="text"
                     className="w-full p-2 border rounded"
-                    placeholder="CONT-2024-001"
-                    value={form.codigo_barras}
-                    onChange={(e) => setForm({ ...form, codigo_barras: e.target.value.toUpperCase() })}
-                    required
-                  />
-                  <span className="text-xs text-gray-500">Para escaneo</span>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-1">Número Contenedor *</label>
-                  <input
-                    type="text"
-                    className="w-full p-2 border rounded"
-                    placeholder="ABCD1234567"
-                    value={form.numero_contenedor}
-                    onChange={(e) => setForm({ ...form, numero_contenedor: e.target.value.toUpperCase() })}
+                    placeholder="MSCU1234567"
+                    value={form.codigo_contenedor}
+                    onChange={(e) => setForm({ ...form, codigo_contenedor: e.target.value.toUpperCase() })}
                     required
                   />
                 </div>
@@ -174,7 +179,7 @@ const ContenedoresView: React.FC = () => {
                   <input
                     type="text"
                     className="w-full p-2 border rounded"
-                    placeholder="20x8x8"
+                    placeholder="12.19x2.44x2.59"
                     value={form.dimensiones}
                     onChange={(e) => setForm({ ...form, dimensiones: e.target.value })}
                     required
@@ -189,11 +194,11 @@ const ContenedoresView: React.FC = () => {
                     onChange={(e) => setForm({ ...form, tipo: e.target.value })}
                     required
                   >
-                    <option value="20ft">20 pies</option>
-                    <option value="40ft">40 pies</option>
-                    <option value="40ft HC">40 pies HC</option>
-                    <option value="45ft">45 pies</option>
-                    <option value="refrigerado">Refrigerado</option>
+                    <option value="Seco">Seco</option>
+                    <option value="Refrigerado">Refrigerado</option>
+                    <option value="Open Top">Open Top</option>
+                    <option value="Flat Rack">Flat Rack</option>
+                    <option value="Tanque">Tanque</option>
                   </select>
                 </div>
 
@@ -211,17 +216,16 @@ const ContenedoresView: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-1">Buque *</label>
+                  <label className="block text-sm font-medium mb-1">Buque</label>
                   <select
                     className="w-full p-2 border rounded"
                     value={form.id_buque}
                     onChange={(e) => setForm({ ...form, id_buque: e.target.value })}
-                    required
                   >
                     <option value="">Seleccione un buque</option>
                     {buques.map((buque) => (
                       <option key={buque.id} value={buque.id}>
-                        {buque.nombre} ({buque.codigo_omi})
+                        {buque.nombre} - {buque.linea_naviera}
                       </option>
                     ))}
                   </select>
@@ -242,7 +246,7 @@ const ContenedoresView: React.FC = () => {
                     type="button"
                     onClick={() => {
                       setEditingId(null);
-                      setForm({ codigo_barras: '', numero_contenedor: '', dimensiones: '20x8x8', tipo: '20ft', peso: '', id_buque: '' });
+                      setForm({ codigo_contenedor: '', dimensiones: '12.19x2.44x2.59', tipo: 'Seco', peso: '', id_buque: '' });
                     }}
                     className="px-6 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
                   >
@@ -263,10 +267,9 @@ const ContenedoresView: React.FC = () => {
                       onClick={() => {
                         setEditingId(row.id);
                         setForm({
-                          codigo_barras: row.codigo_barras || '',
-                          numero_contenedor: row.numero_contenedor || '',
-                          dimensiones: row.dimensiones || '20x8x8',
-                          tipo: row.tipo || '20ft',
+                          codigo_contenedor: row.codigo_contenedor || '',
+                          dimensiones: row.dimensiones || '12.19x2.44x2.59',
+                          tipo: row.tipo || 'Seco',
                           peso: String(row.peso || ''),
                           id_buque: String(row.id_buque || '')
                         });
@@ -285,7 +288,7 @@ const ContenedoresView: React.FC = () => {
               },
             ])}
             data={data}
-            searchKeys={['codigo_barras', 'numero_contenedor', 'tipo']}
+            searchKeys={['codigo_contenedor', 'tipo']}
           />
     </AdminLayout>
   );

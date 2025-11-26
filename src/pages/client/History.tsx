@@ -14,9 +14,10 @@ interface User {
 }
 
 interface ContenedorInfo {
-  codigo_barras?: string;
-  numero_contenedor?: string;
+  codigo_contenedor?: string;
   tipo?: string;
+  dimensiones?: string;
+  peso?: number;
   [key: string]: unknown;
 }
 
@@ -47,7 +48,7 @@ const History = () => {
     const storedRole = localStorage.getItem("userRole");
     const storedName = localStorage.getItem("userName");
     
-    if (!storedUserId || storedRole !== "CLIENTE") {
+    if (!storedUserId || storedRole?.toUpperCase() !== "CLIENTE") {
       navigate("/");
       return;
     }
@@ -66,7 +67,7 @@ const History = () => {
       
       try {
         setLoading(true);
-        const tickets = await api.tickets.byUsuario(user.id);
+        const tickets = await api.tickets.byCliente(user.id);
         // Filtrar solo tickets completados o con fecha de salida
         const historyTickets = tickets?.filter((t: HistoryTicket) => 
           t.estado?.toLowerCase() === "completado" || t.fecha_hora_salida
@@ -99,7 +100,7 @@ const History = () => {
         const info = value as ContenedorInfo | undefined;
         return (
           <span className="font-mono text-sm">
-            {info?.codigo_barras || info?.numero_contenedor || 'N/A'}
+            {info?.codigo_contenedor || 'N/A'}
           </span>
         );
       }
@@ -125,12 +126,13 @@ const History = () => {
       label: "Estado Final",
       render: (value: string) => {
         const variants: Record<string, string> = {
-          "completado": "bg-green-100 text-green-800",
-          "cancelado": "bg-red-100 text-red-800"
+          "Finalizado": "bg-gray-500 text-white",
+          "Completado": "bg-emerald-500 text-white",
+          "Cancelado": "bg-red-500 text-white"
         };
         return (
-          <Badge className={variants[value?.toLowerCase()] || "bg-gray-100 text-gray-600"}>
-            {value?.replace('_', ' ').toUpperCase() || 'PROCESADO'}
+          <Badge className={variants[value] || "bg-gray-400 text-white"}>
+            {value?.toUpperCase() || 'FINALIZADO'}
           </Badge>
         );
       }

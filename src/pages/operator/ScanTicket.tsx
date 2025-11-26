@@ -1,21 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import OperatorLayout from '../../components/OperatorLayout';
-import { apiFetch } from '../../lib/api';
-import { Scan, Package, Calendar, MapPin, User, CheckCircle, X } from 'lucide-react';
+import { api } from '../../lib/api';
+import { Scan, Package, MapPin, User, CheckCircle, X } from 'lucide-react';
 
 interface ContenedorInfo {
   id: number;
-  codigo_barras: string;
+  codigo_contenedor: string;
   tipo: string;
   peso: number;
   dimensiones: string;
-  buque_nombre: string;
-  cita_info: {
-    fecha_envio: string;
-    fecha_recojo: string;
-    cliente: string;
-    estado: string;
-  } | null;
+  id_buque?: number;
 }
 
 interface Zona {
@@ -34,7 +28,7 @@ interface Slot {
 }
 
 const ScanTicket: React.FC = () => {
-  const [codigoBarras, setCodigoBarras] = useState('');
+  const [codigoContenedor, setCodigoContenedor] = useState('');
   const [contenedorInfo, setContenedorInfo] = useState<ContenedorInfo | null>(null);
   const [zonas, setZonas] = useState<Zona[]>([]);
   const [slots, setSlots] = useState<Slot[]>([]);
@@ -42,10 +36,44 @@ const ScanTicket: React.FC = () => {
   const [selectedSlot, setSelectedSlot] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>('');
+  const [userName, setUserName] = useState("Operario");
+
+  useEffect(() => {
+    const storedName = localStorage.getItem("userName");
+    if (storedName) setUserName(storedName);
+  }, []);
+
+  const loadZonas = useCallback(async () => {
+    try {
+      const zonasData = await api.zonas.list();
+      setZonas(zonasData || []);
+    } catch (err) {
+      console.error('Error cargando zonas:', err);
+    }
+  }, []);
+
+  const loadSlotsByZona = useCallback(async (zonaId: number) => {
+    try {
+      const slotsData = await api.slots.list();
+      const slotsDisponibles = (slotsData || []).filter(
+        (s: Slot) => s.id_zona === zonaId && (s.estado === 'Vacio' || s.estado.toLowerCase() === 'disponible')
+      );
+      
+      const zona = zonas.find(z => z.id === zonaId);
+      const slotsConZona = slotsDisponibles.map((s: Slot) => ({
+        ...s,
+        zona_nombre: zona?.nombre || ''
+      }));
+      
+      setSlots(slotsConZona);
+    } catch (err) {
+      console.error('Error cargando slots:', err);
+    }
+  }, [zonas]);
 
   useEffect(() => {
     loadZonas();
-  }, []);
+  }, [loadZonas]);
 
   useEffect(() => {
     if (selectedZona) {
@@ -56,39 +84,11 @@ const ScanTicket: React.FC = () => {
     }
   }, [selectedZona, loadSlotsByZona]);
 
-  const loadZonas = async () => {
-    try {
-      const zonasData = await apiFetch('/zonas/');
-      setZonas(zonasData || []);
-    } catch (error) {
-      console.error('Error cargando zonas:', error);
-    }
-  };
-
-  const loadSlotsByZona = useCallback(async (zonaId: number) => {
-    try {
-      const slotsData = await apiFetch('/ubicaciones-slot/');
-      const slotsDisponibles = slotsData.filter(
-        (s: Slot) => s.id_zona === zonaId && s.estado.toLowerCase() === 'disponible'
-      );
-      
-      const zona = zonas.find(z => z.id === zonaId);
-      const slotsConZona = slotsDisponibles.map((s: Slot) => ({
-        ...s,
-        zona_nombre: zona?.nombre || ''
-      }));
-      
-      setSlots(slotsConZona);
-    } catch (error) {
-      console.error('Error cargando slots:', error);
-    }
-  }, [zonas]);
-
   const handleScan = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!codigoBarras.trim()) {
-      setError('Por favor ingrese un código de barras');
+    if (!codigoContenedor.trim()) {
+      setError('Por favor ingrese un código de contenedor');
       return;
     }
 
@@ -97,46 +97,30 @@ const ScanTicket: React.FC = () => {
     setContenedorInfo(null);
 
     try {
-      // Buscar contenedor por código de barras
-      const contenedores = await apiFetch(`/contenedores/`);
-      const contenedor = contenedores.find(
-        (c: ContenedorInfo) => c.codigo_barras === codigoBarras.trim()
+      // Buscar contenedor por código
+      const contenedores = await api.contenedores.list();
+      const contenedor = (contenedores || []).find(
+        (c: ContenedorInfo) => c.codigo_contenedor?.toUpperCase() === codigoContenedor.trim().toUpperCase()
       );
 
       if (!contenedor) {
-        setError('❌ Contenedor no encontrado. Verifique el código de barras.');
-        return;
-      }
-
-      if (!contenedor.cita_info) {
-        setError('❌ Este contenedor no tiene una cita/reserva asociada. Solo se pueden validar contenedores con reserva confirmada de la empresa transportista.');
+        setError('❌ Contenedor no encontrado. Verifique el código.');
         return;
       }
 
       // Verificar que el contenedor no tenga ticket ya creado
-      const tickets = await apiFetch('/tickets/');
-      const ticketExistente = tickets.find((t: Record<string, unknown>) => t.id_contenedor === contenedor.id);
+      const tickets = await api.tickets.list();
+      const ticketExistente = (tickets || []).find((t: Record<string, unknown>) => t.id_contenedor === contenedor.id);
       
       if (ticketExistente) {
-        setError(`❌ Este contenedor ya fue procesado. Ticket #${ticketExistente.id} creado anteriormente (Estado: ${ticketExistente.estado}).`);
+        setError(`❌ Este contenedor ya fue procesado. Ticket #${ticketExistente.id} (Estado: ${ticketExistente.estado}).`);
         return;
-      }
-
-      // Verificar que la fecha actual esté dentro del rango
-      const hoy = new Date().toISOString().split('T')[0];
-      if (hoy < contenedor.cita_info.fecha_envio) {
-        setError(`❌ La fecha de envío es ${contenedor.cita_info.fecha_envio}. Aún no es válido recibir este contenedor.`);
-        return;
-      }
-
-      if (hoy > contenedor.cita_info.fecha_recojo) {
-        setError(`⚠️ ADVERTENCIA: La fecha de recojo era ${contenedor.cita_info.fecha_recojo}. Este contenedor está retrasado.`);
       }
 
       setContenedorInfo(contenedor);
-    } catch (error: unknown) {
-      console.error('Error buscando contenedor:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+    } catch (err: unknown) {
+      console.error('Error buscando contenedor:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Error desconocido';
       setError(`Error al buscar contenedor: ${errorMessage}`);
     } finally {
       setLoading(false);
@@ -151,57 +135,34 @@ const ScanTicket: React.FC = () => {
 
     setLoading(true);
     try {
-      // Buscar el cliente asociado a la cita
-      const citas = await apiFetch('/citas-recojo/');
-      const cita = citas.find((c: Record<string, unknown>) => 
-        c.fecha_envio === contenedorInfo.cita_info?.fecha_envio &&
-        c.fecha_recojo === contenedorInfo.cita_info?.fecha_recojo
-      );
-
-      if (!cita || !cita.id_cliente) {
-        alert('Error: No se encontró el cliente asociado a esta reserva');
-        return;
-      }
+      // Obtener el usuario actual (operario)
+      const userId = localStorage.getItem('userId');
 
       // Crear el ticket
       const ticketPayload = {
         fecha_hora_entrada: new Date().toISOString(),
-        estado: 'Validado',
+        estado: 'Validado' as const,
         id_ubicacion: Number(selectedSlot),
-        id_usuario: cita.id_cliente, // El cliente que hizo la reserva
+        id_usuario: Number(userId),
         id_contenedor: contenedorInfo.id
       };
 
-      await apiFetch('/tickets/', {
-        method: 'POST',
-        body: JSON.stringify(ticketPayload)
-      });
+      await api.tickets.create(ticketPayload);
 
       // Actualizar estado del slot a ocupado
-      await apiFetch(`/ubicaciones-slot/${selectedSlot}/`, {
-        method: 'PATCH',
-        body: JSON.stringify({ estado: 'ocupado' })
-      });
-
-      // Actualizar estado de la cita a en_proceso
-      if (cita) {
-        await apiFetch(`/citas-recojo/${cita.id}/`, {
-          method: 'PATCH',
-          body: JSON.stringify({ estado: 'en_proceso' })
-        });
-      }
+      await api.slots.update(Number(selectedSlot), { estado: 'Ocupado' });
 
       alert('✅ Ticket creado exitosamente! El contenedor ha sido asignado.');
       
       // Reset form
-      setCodigoBarras('');
+      setCodigoContenedor('');
       setContenedorInfo(null);
       setSelectedZona('');
       setSelectedSlot('');
       setError('');
-    } catch (error: unknown) {
-      console.error('Error creando ticket:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Error al crear el ticket';
+    } catch (err: unknown) {
+      console.error('Error creando ticket:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Error al crear el ticket';
       alert(`Error: ${errorMessage}`);
     } finally {
       setLoading(false);
@@ -209,7 +170,7 @@ const ScanTicket: React.FC = () => {
   };
 
   const handleClear = () => {
-    setCodigoBarras('');
+    setCodigoContenedor('');
     setContenedorInfo(null);
     setSelectedZona('');
     setSelectedSlot('');
@@ -217,28 +178,30 @@ const ScanTicket: React.FC = () => {
   };
 
   return (
-    <OperatorLayout>
-      <div className="p-6 lg:p-8">
-        <h1 className="text-3xl font-bold mb-2">Validar Contenedor</h1>
-        <p className="text-muted-foreground mb-6">
-          Escanee o busque el contenedor para validar su reserva y asignar ubicación en el puerto
-        </p>
+    <OperatorLayout userName={userName}>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold mb-2">Validar Contenedor</h1>
+          <p className="text-muted-foreground">
+            Busque el contenedor por código para validarlo y asignar ubicación
+          </p>
+        </div>
 
-        {/* Formulario de escaneo */}
-        <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+        {/* Formulario de búsqueda */}
+        <div className="bg-white rounded-lg shadow-lg p-6">
           <form onSubmit={handleScan} className="space-y-4">
             <div>
               <label className="flex items-center gap-2 text-sm font-medium mb-2">
                 <Scan className="w-5 h-5" />
-                Código de Barras
+                Código de Contenedor
               </label>
               <div className="flex gap-3">
                 <input
                   type="text"
                   className="flex-1 p-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-lg font-mono"
-                  placeholder="Escanee o ingrese el código..."
-                  value={codigoBarras}
-                  onChange={(e) => setCodigoBarras(e.target.value)}
+                  placeholder="Ej: MSCU1234567, EISU9998877..."
+                  value={codigoContenedor}
+                  onChange={(e) => setCodigoContenedor(e.target.value.toUpperCase())}
                   autoFocus
                 />
                 <button
@@ -283,37 +246,22 @@ const ScanTicket: React.FC = () => {
                     <span className="font-semibold text-blue-900">Información del Contenedor</span>
                   </div>
                   <div className="space-y-1 text-sm">
-                    <p><strong>Código:</strong> {contenedorInfo.codigo_barras}</p>
+                    <p><strong>Código:</strong> <span className="font-mono">{contenedorInfo.codigo_contenedor}</span></p>
                     <p><strong>Tipo:</strong> {contenedorInfo.tipo}</p>
                     <p><strong>Dimensiones:</strong> {contenedorInfo.dimensiones}</p>
-                    <p><strong>Peso:</strong> {contenedorInfo.peso} kg</p>
-                    <p><strong>Buque:</strong> {contenedorInfo.buque_nombre}</p>
+                    <p><strong>Peso:</strong> {contenedorInfo.peso?.toLocaleString()} kg</p>
                   </div>
                 </div>
 
-                {contenedorInfo.cita_info && (
-                  <div className="p-4 bg-green-50 rounded-lg">
-                    <div className="flex items-center gap-2 mb-2">
-                      <User className="w-5 h-5 text-green-600" />
-                      <span className="font-semibold text-green-900">Información de la Reserva</span>
-                    </div>
-                    <div className="space-y-1 text-sm">
-                      <p><strong>Cliente:</strong> {contenedorInfo.cita_info.cliente}</p>
-                      <p><strong>Fecha Envío:</strong> {contenedorInfo.cita_info.fecha_envio}</p>
-                      <p><strong>Fecha Recojo:</strong> {contenedorInfo.cita_info.fecha_recojo}</p>
-                      <p>
-                        <strong>Estado:</strong>{' '}
-                        <span className={`px-2 py-1 rounded ${
-                          contenedorInfo.cita_info.estado === 'reservada' ? 'bg-yellow-200 text-yellow-800' :
-                          contenedorInfo.cita_info.estado === 'en_proceso' ? 'bg-blue-200 text-blue-800' :
-                          'bg-gray-200 text-gray-800'
-                        }`}>
-                          {contenedorInfo.cita_info.estado}
-                        </span>
-                      </p>
-                    </div>
+                <div className="p-4 bg-green-50 rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <User className="w-5 h-5 text-green-600" />
+                    <span className="font-semibold text-green-900">Estado</span>
                   </div>
-                )}
+                  <div className="space-y-1 text-sm">
+                    <p className="text-green-700 font-medium">✓ Listo para asignar ubicación</p>
+                  </div>
+                </div>
               </div>
 
               {/* Asignación de ubicación */}
@@ -381,9 +329,9 @@ const ScanTicket: React.FC = () => {
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
           <h3 className="font-semibold text-blue-900 mb-2">📋 Instrucciones</h3>
           <ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside">
-            <li>Escanee o ingrese el código de barras del contenedor</li>
-            <li>El sistema buscará automáticamente la reserva asociada</li>
-            <li>Verifique que las fechas sean correctas</li>
+            <li>Ingrese el código del contenedor (ej: MSCU1234567)</li>
+            <li>El sistema buscará el contenedor en la base de datos</li>
+            <li>Verifique la información del contenedor</li>
             <li>Seleccione una zona y un slot disponible</li>
             <li>Confirme para crear el ticket y asignar la ubicación</li>
           </ol>

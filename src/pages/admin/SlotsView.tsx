@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '@/components/AdminLayout';
 import DataTable from '@/components/DataTable';
-import { apiFetch } from '@/lib/api';
+import { api } from '@/lib/api';
 
 interface Zona {
   id: number;
@@ -49,8 +49,8 @@ const SlotsView: React.FC = () => {
     setLoading(true);
     try {
       const [slotsData, zonasData] = await Promise.all([
-        apiFetch('/ubicaciones-slot/'),
-        apiFetch('/zonas/')
+        api.slots.list(),
+        api.zonas.list()
       ]);
       
       setData(slotsData || []);
@@ -82,16 +82,10 @@ const SlotsView: React.FC = () => {
       };
 
       if (editingId) {
-        await apiFetch(`/ubicaciones-slot/${editingId}/`, {
-          method: 'PUT',
-          body: JSON.stringify(payload),
-        });
+        await api.slots.update(editingId, payload);
         alert('Slot actualizado exitosamente');
       } else {
-        await apiFetch('/ubicaciones-slot/', {
-          method: 'POST',
-          body: JSON.stringify(payload),
-        });
+        await api.slots.create(payload);
         alert('Slot creado exitosamente');
       }
 
@@ -111,7 +105,7 @@ const SlotsView: React.FC = () => {
     if (!confirm('¿Eliminar este slot?')) return;
 
     try {
-      await apiFetch(`/ubicaciones-slot/${id}/`, { method: 'DELETE' });
+      await api.slots.delete(id);
       await loadData();
       alert('Slot eliminado exitosamente');
     } catch (error) {
@@ -141,7 +135,23 @@ const SlotsView: React.FC = () => {
         return zona ? zona.nombre : `ID: ${value}`;
       }
     },
-    { key: 'estado', label: 'Estado' },
+    { 
+      key: 'estado', 
+      label: 'Estado',
+      render: (value: string) => {
+        const variants: Record<string, string> = {
+          "Vacio": "bg-green-500 text-white",
+          "Ocupado": "bg-red-500 text-white",
+          "Reservado": "bg-yellow-500 text-white",
+          "Mantenimiento": "bg-orange-500 text-white"
+        };
+        return (
+          <span className={`px-2 py-1 rounded-full text-xs font-medium ${variants[value] || "bg-gray-400 text-white"}`}>
+            {value || 'N/A'}
+          </span>
+        );
+      }
+    },
   ];
 
   return (

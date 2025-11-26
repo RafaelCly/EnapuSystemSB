@@ -87,7 +87,7 @@ const Login = () => {
       const user = await api.usuarios.login(email, password);
       
       if (user) {
-        const roleName = rolesMap[user.id_rol] || 'OPERARIO';
+        const roleName = (rolesMap[user.id_rol] || 'OPERARIO').toUpperCase();
         
         // Store user info
         localStorage.setItem('userId', String(user.id));
@@ -168,29 +168,53 @@ const Login = () => {
               <div className="col-span-3 mt-6">
                 <h3 className="text-lg font-semibold mb-3 text-white">Usuarios disponibles (clic para login rápido)</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  {users.slice(0,9).map(u => {
-                    const rolNombre = u.rol_nombre || rolesMap[u.id_rol] || 'Usuario';
-                    const rolPath = rolNombre === 'ADMINISTRADOR' ? '/admin/dashboard' : 
-                                   rolNombre === 'OPERARIO' ? '/operator/panel' : '/client/dashboard';
-                    return (
-                      <button 
-                        key={u.id} 
-                        className="bg-white rounded-lg p-4 text-left shadow-md hover:shadow-xl transition-all hover:scale-105" 
-                        onClick={() => { 
-                          // Auto-fill form with this user's email
-                          setEmail(u.email);
-                          setPassword('');
-                          setSelectedRole(rolNombre === 'ADMINISTRADOR' ? 'ADMINISTRADOR' : rolNombre === 'OPERARIO' ? 'OPERARIO' : 'CLIENTE');
-                          setShowForm(true);
-                          setTargetPath(rolPath);
-                        }}
-                      >
-                        <div className="font-semibold text-base text-gray-800">{u.nombre}</div>
-                        <div className="text-sm text-gray-600 mt-1">Email: {u.email}</div>
-                        <div className="text-xs text-primary font-medium mt-2">Rol: {rolNombre}</div>
-                      </button>
-                    );
-                  })}
+                  {/* Mostrar 2-3 usuarios de cada rol */}
+                  {(() => {
+                    // Separar usuarios por rol
+                    const admins = users.filter(u => rolesMap[u.id_rol]?.toUpperCase() === 'ADMINISTRADOR');
+                    const operarios = users.filter(u => rolesMap[u.id_rol]?.toUpperCase() === 'OPERARIO');
+                    const clientes = users.filter(u => rolesMap[u.id_rol]?.toUpperCase() === 'CLIENTE');
+                    
+                    // Tomar 2 de cada rol para mostrar de forma balanceada
+                    const displayUsers = [
+                      ...admins.slice(0, 2),
+                      ...operarios.slice(0, 2),
+                      ...clientes.slice(0, 2)
+                    ];
+                    
+                    return displayUsers.map(u => {
+                      const rolNombre = rolesMap[u.id_rol] || 'Usuario';
+                      const rolNombreUpper = rolNombre.toUpperCase();
+                      const rolPath = rolNombreUpper === 'ADMINISTRADOR' ? '/admin/dashboard' : 
+                                     rolNombreUpper === 'OPERARIO' ? '/operator/panel' : '/client/dashboard';
+                      
+                      // Color según rol
+                      const rolColor = rolNombreUpper === 'ADMINISTRADOR' ? 'bg-purple-100 text-purple-700' :
+                                      rolNombreUpper === 'OPERARIO' ? 'bg-blue-100 text-blue-700' :
+                                      'bg-green-100 text-green-700';
+                      
+                      return (
+                        <button 
+                          key={u.id} 
+                          className="bg-white rounded-lg p-4 text-left shadow-md hover:shadow-xl transition-all hover:scale-105" 
+                          onClick={() => { 
+                            // Auto-fill form with this user's email
+                            setEmail(u.email);
+                            setPassword('');
+                            setSelectedRole(rolNombreUpper === 'ADMINISTRADOR' ? 'ADMINISTRADOR' : rolNombreUpper === 'OPERARIO' ? 'OPERARIO' : 'CLIENTE');
+                            setShowForm(true);
+                            setTargetPath(rolPath);
+                          }}
+                        >
+                          <div className="font-semibold text-base text-gray-800">{u.nombre}</div>
+                          <div className="text-sm text-gray-600 mt-1">Email: {u.email}</div>
+                          <div className={`text-xs font-medium mt-2 px-2 py-1 rounded-full inline-block ${rolColor}`}>
+                            {rolNombre}
+                          </div>
+                        </button>
+                      );
+                    });
+                  })()}
                 </div>
               </div>
             )}

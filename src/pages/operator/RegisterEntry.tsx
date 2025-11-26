@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import OperatorLayout from "@/components/OperatorLayout";
-import { apiFetch } from "@/lib/api";
+import { api } from "@/lib/api";
 
 interface RegisterEntryProps {
   operatorName: string;
@@ -16,16 +16,18 @@ interface Ticket {
   estado: string;
   fecha_hora_entrada: string;
   fecha_hora_salida: string | null;
-  contenedor_info: {
-    codigo_barras: string;
-    tipo: string;
-  };
-  ubicacion_info: {
-    zona_nombre: string;
-    fila: number;
-    columna: number;
-    nivel: number;
-  };
+  id_contenedor: number;
+  id_ubicacion: number;
+  contenedor_info?: {
+    codigo_contenedor?: string;
+    tipo?: string;
+  } | null;
+  ubicacion_info?: {
+    zona_nombre?: string;
+    fila?: number;
+    columna?: number;
+    nivel?: number;
+  } | null;
   placa?: string;
   conductor?: string;
   turno?: string;
@@ -46,10 +48,10 @@ const RegisterEntry = ({ operatorName }: RegisterEntryProps) => {
   const loadTickets = async () => {
     setLoading(true);
     try {
-      const data = await apiFetch('/tickets/');
-      // Filtrar tickets validados o en cola
-      const validatedTickets = data.filter((t: Ticket) => 
-        t.estado === "Validado" || t.estado === "En Cola"
+      const data = await api.tickets.listWithDetails();
+      // Filtrar tickets validados, en cola o activos (para pruebas)
+      const validatedTickets = (data || []).filter((t: Ticket) => 
+        t.estado === "Validado" || t.estado === "En Cola" || t.estado === "Activo"
       );
       setTickets(validatedTickets);
     } catch (error) {
@@ -63,10 +65,7 @@ const RegisterEntry = ({ operatorName }: RegisterEntryProps) => {
   const handleRegisterEntry = async (ticketId: number) => {
     try {
       // Actualizar estado del ticket a "En Proceso" o "Ingresado"
-      await apiFetch(`/tickets/${ticketId}/`, {
-        method: 'PATCH',
-        body: JSON.stringify({ estado: 'En Proceso' })
-      });
+      await api.tickets.update(ticketId, { estado: 'Activo' });
 
       const now = new Date().toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
       
@@ -113,7 +112,11 @@ const RegisterEntry = ({ operatorName }: RegisterEntryProps) => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {tickets.map((ticket) => {
                 const isRegistered = registeredTickets.includes(ticket.id);
-                const slotLabel = `${ticket.ubicacion_info.zona_nombre}-${ticket.ubicacion_info.fila}${ticket.ubicacion_info.columna}-${ticket.ubicacion_info.nivel}`;
+                const contenedor = ticket.contenedor_info;
+                const ubicacion = ticket.ubicacion_info;
+                const slotLabel = ubicacion 
+                  ? `${ubicacion.zona_nombre || 'N/A'}-${ubicacion.fila || 0}${ubicacion.columna || 0}-${ubicacion.nivel || 0}`
+                  : 'Sin asignar';
                 
                 return (
                   <Card key={ticket.id} className={isRegistered ? "opacity-60" : ""}>
@@ -121,7 +124,7 @@ const RegisterEntry = ({ operatorName }: RegisterEntryProps) => {
                       <div className="flex items-start justify-between">
                         <div>
                           <CardTitle className="text-base">Ticket #{ticket.id}</CardTitle>
-                          <p className="text-sm text-muted-foreground mt-1">{ticket.contenedor_info.codigo_barras}</p>
+                          <p className="text-sm text-muted-foreground mt-1">{contenedor?.codigo_contenedor || 'Sin contenedor'}</p>
                         </div>
                         <Badge className={
                           isRegistered 
@@ -138,21 +141,21 @@ const RegisterEntry = ({ operatorName }: RegisterEntryProps) => {
                       <div className="space-y-2 text-sm">
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Contenedor:</span>
-                          <span className="font-mono font-semibold">{ticket.contenedor_info.codigo_barras}</span>
+                          <span className="font-mono font-semibold">{contenedor?.codigo_contenedor || 'N/A'}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Tipo:</span>
-                          <span className="font-medium">{ticket.contenedor_info.tipo}</span>
+                          <span className="font-medium">{contenedor?.tipo || 'N/A'}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Validado:</span>
                           <span className="font-medium">
-                            {new Date(ticket.fecha_hora_entrada).toLocaleString('es-PE', { 
+                            {ticket.fecha_hora_entrada ? new Date(ticket.fecha_hora_entrada).toLocaleString('es-PE', { 
                               day: '2-digit', 
                               month: '2-digit', 
                               hour: '2-digit', 
                               minute: '2-digit' 
-                            })}
+                            }) : 'N/A'}
                           </span>
                         </div>
                         <div className="flex justify-between">

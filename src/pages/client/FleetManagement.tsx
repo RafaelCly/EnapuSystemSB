@@ -1,10 +1,9 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { LayoutGrid, Plus, List, History, Truck, Bell, User as UserIcon } from "lucide-react";
+import { LayoutGrid, List, History, Truck } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Sidebar from "@/components/Sidebar";
 import DataTable from "@/components/DataTable";
-import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/api";
 
 interface User {
@@ -14,21 +13,13 @@ interface User {
 }
 
 interface Container {
-  codigo_barras?: string;
-  numero_contenedor?: string;
+  id?: number;
+  codigo_contenedor?: string;
   tipo?: string;
-  ticket_estado?: string;
-  fecha_entrada?: string;
-  ubicacion?: {
-    zona_nombre?: string;
-  };
-  [key: string]: unknown;
-}
-
-interface Ticket {
-  contenedor_info?: Container;
+  dimensiones?: string;
+  peso?: number;
   estado?: string;
-  fecha_hora_entrada?: string;
+  id_buque?: number;
   [key: string]: unknown;
 }
 
@@ -44,7 +35,7 @@ const FleetManagement = () => {
     const storedRole = localStorage.getItem("userRole");
     const storedName = localStorage.getItem("userName");
     
-    if (!storedUserId || storedRole !== "CLIENTE") {
+    if (!storedUserId || storedRole?.toUpperCase() !== "CLIENTE") {
       navigate("/");
       return;
     }
@@ -56,31 +47,17 @@ const FleetManagement = () => {
     });
   }, [navigate]);
 
-  // Cargar contenedores del usuario (a través de tickets)
+  // Cargar contenedores del usuario directamente
   useEffect(() => {
     const loadUserContainers = async () => {
       if (!user?.id) return;
       
       try {
         setLoading(true);
-        const tickets = await api.tickets.byUsuario(user.id);
-        
-        // Extraer contenedores únicos de los tickets
-        const containersMap = new Map<string, Container>();
-        tickets?.forEach((ticket: Ticket) => {
-          if (ticket.contenedor_info && !containersMap.has(ticket.contenedor_info.codigo_barras)) {
-            containersMap.set(ticket.contenedor_info.codigo_barras, {
-              ...ticket.contenedor_info,
-              ticket_estado: ticket.estado,
-              fecha_entrada: ticket.fecha_hora_entrada,
-              ubicacion: ticket.ubicacion_info
-            });
-          }
-        });
-        
-        const containers = Array.from(containersMap.values());
+        // Obtener contenedores directamente del cliente
+        const containers = await api.contenedores.byCliente(user.id);
         console.log('Contenedores del cliente cargados:', containers);
-        setUserContainers(containers);
+        setUserContainers(containers || []);
       } catch (error) {
         console.error('Error cargando contenedores:', error);
         setUserContainers([]);
@@ -96,14 +73,9 @@ const FleetManagement = () => {
 
   const columns = [
     { 
-      key: "codigo_barras", 
+      key: "codigo_contenedor", 
       label: "Código",
-      render: (value: string) => <span className="font-mono text-sm">{value}</span>
-    },
-    { 
-      key: "numero_contenedor", 
-      label: "Número",
-      render: (value: string) => <span className="font-mono font-semibold">{value}</span>
+      render: (value: string) => <span className="font-mono text-sm">{value || 'N/A'}</span>
     },
     { key: "tipo", label: "Tipo" },
     { key: "dimensiones", label: "Dimensiones" },
@@ -111,31 +83,6 @@ const FleetManagement = () => {
       key: "peso", 
       label: "Peso (kg)",
       render: (value: number) => value?.toLocaleString() || 'N/A'
-    },
-    { 
-      key: "ticket_estado", 
-      label: "Estado",
-      render: (value: string) => {
-        const variants: Record<string, string> = {
-          "pendiente": "bg-blue-100 text-blue-800",
-          "en_proceso": "bg-yellow-100 text-yellow-800",
-          "en_espera": "bg-gray-100 text-gray-800",
-          "completado": "bg-green-100 text-green-800"
-        };
-        return (
-          <Badge className={variants[value?.toLowerCase()] || "bg-gray-100 text-gray-600"}>
-            {value?.replace('_', ' ').toUpperCase() || 'N/A'}
-          </Badge>
-        );
-      }
-    },
-    { 
-      key: "ubicacion", 
-      label: "Ubicación",
-      render: (value: unknown) => {
-        const ubicacion = value as { zona_nombre?: string } | undefined;
-        return ubicacion?.zona_nombre ? `Zona ${ubicacion.zona_nombre}` : 'Sin asignar';
-      }
     },
   ];
 
