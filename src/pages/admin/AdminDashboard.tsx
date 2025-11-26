@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Users, MapPin, Grid3x3, Package, Settings, BarChart3, Activity } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { apiFetch } from "@/lib/api";
+import { api } from "@/lib/api";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -28,18 +28,16 @@ const AdminDashboard = () => {
   const loadStats = async () => {
     try {
       const [tickets, usuarios, slots] = await Promise.all([
-        apiFetch('/tickets/'),
-        apiFetch('/usuarios/'),
-        apiFetch('/ubicaciones-slot/')
+        api.tickets.list(),
+        api.usuarios.list(),
+        api.slots.list()
       ]);
       
       setStats({
-        totalTickets: tickets.length,
-        activeTickets: tickets.filter((t: Record<string, unknown>) => 
-          ["Pendiente", "En Proceso", "Validado", "En Cola"].includes(t.estado as string)
-        ).length,
-        totalUsers: usuarios.length,
-        availableSlots: slots.filter((s: Record<string, unknown>) => (s.estado as string).toLowerCase() === 'disponible').length
+        totalTickets: tickets?.length || 0,
+        activeTickets: tickets?.filter((t: any) => t.estado === 'Activo').length || 0,
+        totalUsers: usuarios?.length || 0,
+        availableSlots: slots?.filter((s: any) => s.estado === 'Vacio').length || 0
       });
     } catch (err) {
       console.error('Error cargando estadísticas:', err);

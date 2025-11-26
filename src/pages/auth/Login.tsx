@@ -4,6 +4,7 @@ import { User, UserCog, ShieldCheck, Ship, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
+import { api } from "@/lib/api";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -52,26 +53,20 @@ const Login = () => {
     setTargetPath(role.path);
     setShowForm(true);
   };
-  // Fetch users and roles from backend to allow real-user login
+  // Fetch users and roles from Supabase
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
         const [rolesResp, usersResp] = await Promise.all([
-          fetch('http://127.0.0.1:8000/api/roles/', {
-            mode: 'cors',
-            credentials: 'include'
-          }).then(r => r.json()),
-          fetch('http://127.0.0.1:8000/api/usuarios/', {
-            mode: 'cors',
-            credentials: 'include'
-          }).then(r => r.json()),
+          api.roles.list(),
+          api.usuarios.list()
         ]);
         if (!mounted) return;
         const map: Record<number,string> = {};
-        rolesResp.forEach((r: {id: number; rol: string}) => { map[r.id] = r.rol; });
+        rolesResp?.forEach((r: {id: number; rol: string}) => { map[r.id] = r.rol.toUpperCase(); });
         setRolesMap(map);
-        setUsers(usersResp);
+        setUsers(usersResp || []);
       } catch (err) {
         // ignore, keep demo mode
         console.warn('Could not load users/roles', err);
@@ -88,22 +83,11 @@ const Login = () => {
     }
 
     try {
-      // Try real API login first
-      const response = await fetch('http://127.0.0.1:8000/api/usuarios/login/', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        mode: 'cors',
-        credentials: 'include',
-        body: JSON.stringify({ email, password })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const user = data.user;
-        const roleName = user.rol_nombre || 'OPERARIO';
+      // Login con Supabase
+      const user = await api.usuarios.login(email, password);
+      
+      if (user) {
+        const roleName = rolesMap[user.id_rol] || 'OPERARIO';
         
         // Store user info
         localStorage.setItem('userId', String(user.id));
@@ -116,24 +100,20 @@ const Login = () => {
         });
         
         // Navigate based on role
-        if (roleName === 'ADMINISTRADOR') {
+        if (roleName === 'ADMINISTRADOR' || roleName === 'Administrador') {
           navigate('/admin/dashboard');
-        } else if (roleName === 'OPERARIO') {
+        } else if (roleName === 'OPERARIO' || roleName === 'Operario') {
           navigate('/operator/panel');
-        } else if (roleName === 'CLIENTE') {
+        } else if (roleName === 'CLIENTE' || roleName === 'Cliente') {
           navigate('/client/dashboard');
         } else {
           navigate('/');
         }
-        return;
-      } else {
-        const error = await response.json();
-        toast.error(error.error || 'Credenciales inválidas');
       }
     } catch (err) {
       console.error('Login error:', err);
-      toast.error('Error de conexión con el servidor', {
-        description: 'Por favor verifica que el backend esté funcionando'
+      toast.error('Credenciales inválidas', {
+        description: 'Verifica tu email y contraseña'
       });
     }
   };

@@ -1,184 +1,260 @@
 # 🚢 Sistema de Gestión Portuaria ENAPU
 
-![Estado](https://img.shields.io/badge/Estado-En%20Desarrollo-yellow)
-![Versión](https://img.shields.io/badge/Versión-1.0.0-blue)
-![Licencia](https://img.shields.io/badge/Licencia-MIT-green)
+Sistema moderno de gestión portuaria desarrollado con **React + TypeScript + Supabase**.
 
-Sistema integral de gestión portuaria para el control de contenedores, tickets, ubicaciones y operaciones portuarias con backend Django + API REST y frontend React + TypeScript.
+## 🌟 Características
 
-## �️ Tecnologías
+- ✅ **Frontend moderno** con React 18 + TypeScript + Vite
+- ✅ **UI elegante** con shadcn/ui y Tailwind CSS
+- ✅ **Base de datos en la nube** con Supabase (PostgreSQL)
+- ✅ **Gestión completa de tickets** de contenedores
+- ✅ **Control de ubicaciones** y zonas del puerto
+- ✅ **Facturación y pagos** integrados
+- ✅ **Dashboard en tiempo real** con métricas operacionales
+- ✅ **Responsive design** para desktop y mobile
 
-### Backend
-- **Django 5.2.8** - Framework web Python
-- **Django REST Framework** - API REST
-- **PostgreSQL** - Base de datos
-- **django-cors-headers** - CORS
-- **django-environ** - Gestión de variables de entorno
+---
 
-### Frontend
-- **React 18** - Librería UI
-- **TypeScript** - Tipado estático
-- **Vite** - Build tool
-- **Tailwind CSS** - Estilos
-- **shadcn/ui** - Componentes UI
-- **React Router** - Enrutamiento
+## 📋 Requisitos Previos
 
-## 📋 Características
+- **Node.js** 18+ ([Descargar](https://nodejs.org/))
+- **npm** o **yarn**
+- **Cuenta de Supabase** ([Crear gratis](https://supabase.com))
 
-### Por Rol de Usuario
+---
 
-**👤 Cliente:**
-- Dashboard con resumen de tickets
-- Generación de nuevos tickets con QR
-- Consulta de tickets activos
-- Historial de operaciones
-- Gestión de flota de vehículos
-- Notificaciones en tiempo real
-- Perfil de usuario
+## 🚀 Inicio Rápido
 
-**🔧 Operario:**
-- Panel de operaciones completo
-- Validación de tickets con QR
-- Registro de ingresos y salidas
-- Monitor de turnos en tiempo real
-- Consulta rápida de contenedores
-
-**⚙️ Administrador:**
-- Dashboard con estadísticas generales
-- Vista de usuarios (solo lectura)
-- Configuración del sistema (solo lectura)
-- Reportes y analítica
-- Monitor de logs del sistema
-
-## � Requisitos
-
-- **Node.js** v18 o superior
-- **Python** v3.10 o superior
-- **PostgreSQL** v14 o superior
-- **Git**
-
-## 🚀 Instalación Rápida
-
-### Para Colaboradores del Proyecto
-
-⚠️ **IMPORTANTE:** Lee primero **[INSTRUCCIONES_COLABORADORES.md](./INSTRUCCIONES_COLABORADORES.md)** para guía completa paso a paso.
-
-### Resumen de Instalación
+### 1. Clonar el repositorio
 
 ```bash
-# 1. Clonar repositorio
-git clone https://github.com/RafaelCly/ENAPUU.git
-cd ENAPUU
+git clone <url-del-repo>
+cd "ENAPU - SUPABASE"
+```
 
-# 2. Configurar Backend
-cd backend
-python -m venv venv
-.\venv\Scripts\Activate.ps1  # Windows PowerShell
-pip install -r requirements.txt
-python manage.py migrate
-python manage.py create_initial_data
-python manage.py runserver
+### 2. Instalar dependencias
 
-# 3. Configurar Frontend (en otra terminal)
-cd ..
+```bash
 npm install
+```
+
+### 3. Configurar variables de entorno
+
+Copia el archivo de ejemplo y edita con tus credenciales:
+
+```bash
+copy .env.example .env
+```
+
+Edita `.env` y agrega tus credenciales de Supabase:
+
+```env
+VITE_SUPABASE_URL=https://tu-proyecto.supabase.co
+VITE_SUPABASE_ANON_KEY=tu_clave_anon_publica
+VITE_APP_ENV=development
+```
+
+> 💡 Obtén tus credenciales en Supabase: **Settings → API**
+
+### 4. Configurar la base de datos en Supabase
+
+1. Ve a tu proyecto en [Supabase](https://supabase.com)
+2. Abre **SQL Editor**
+3. Ejecuta el script completo: [`supabase_migration_complete.sql`](./supabase_migration_complete.sql)
+4. Verifica que se crearon las 12 tablas
+
+> 📖 Ver guía detallada: [GUIA_MIGRACION_SUPABASE.md](./GUIA_MIGRACION_SUPABASE.md)
+
+### 5. Iniciar el servidor de desarrollo
+
+```bash
 npm run dev
 ```
 
-### Usuarios de Prueba
+La aplicación estará disponible en: **http://localhost:5173**
 
-| Rol | Email | Password |
-|-----|-------|----------|
-| Administrador | admin@enapu.com | admin123 |
-| Operario | operario@enapu.com | operario123 |
-| Cliente | cliente@empresa.com | cliente123 |
-
-## 🎯 Uso del Sistema
-
-### Login Simulado
-Al iniciar, selecciona uno de los tres roles:
-- **Cliente** → Gestiona tickets y flota
-- **Operario** → Valida y procesa operaciones
-- **Administrador** → Vista general del sistema
-
-### Datos de Prueba
-El sistema incluye datos mock en `/src/data/mocks.js`:
-- 10 tickets de ejemplo
-- 7 turnos
-- 6 contenedores
-- 10 slots portuarios
-- 7 vehículos de flota
-- 5 usuarios
-- Notificaciones y logs del sistema
+---
 
 ## 📁 Estructura del Proyecto
 
 ```
-src/
-├── components/          # Componentes reutilizables
-│   ├── ui/             # Componentes shadcn/ui
-│   ├── Navbar.tsx
-│   ├── Sidebar.tsx
-│   ├── CardStat.tsx
-│   ├── DataTable.tsx
-│   └── QRCard.tsx
-├── pages/              # Páginas por rol
-│   ├── auth/           # Login
-│   ├── client/         # Vistas de cliente
-│   ├── operator/       # Vistas de operario
-│   └── admin/          # Vistas de administrador
-├── data/
-│   └── mocks.js        # Datos simulados
-├── lib/
-│   └── utils.ts
-├── App.tsx
-├── index.css           # Estilos y design system
-└── main.tsx
+ENAPU - SUPABASE/
+├── src/
+│   ├── components/        # Componentes React reutilizables
+│   ├── pages/             # Páginas de la aplicación
+│   ├── lib/
+│   │   ├── supabase.ts    # Cliente de Supabase
+│   │   └── api.ts         # Funciones API con Supabase
+│   ├── hooks/             # Custom React hooks
+│   └── main.tsx           # Punto de entrada
+├── public/                # Archivos estáticos
+├── .env                   # Variables de entorno (no subir a git)
+├── .env.example           # Plantilla de variables de entorno
+├── supabase_migration_complete.sql  # Script de migración de BD
+└── package.json
 ```
-
-## 🎨 Design System
-
-El proyecto utiliza un sistema de diseño institucional basado en:
-- **Color primario:** Navy Blue (#003366)
-- **Acentos:** Celeste/Sky Blue
-- **Tokens semánticos** en HSL
-- **Componentes con variantes**
-- **Responsive** para desktop, tablet y mobile
-
-## 📚 Documentación
-
-- **[INSTRUCCIONES_COLABORADORES.md](./INSTRUCCIONES_COLABORADORES.md)** - Guía completa de configuración
-- **[GUIA_GIT.md](./GUIA_GIT.md)** - Guía de Git para el equipo
-- **[backend/README_BACKEND.md](./backend/README_BACKEND.md)** - Documentación del API
-
-## 🤝 Contribuir
-
-1. Lee **[GUIA_GIT.md](./GUIA_GIT.md)** antes de empezar
-2. Crea una rama: `git checkout -b feature/mi-feature`
-3. Commit: `git commit -m 'feat: Agregar nueva funcionalidad'`
-4. Push: `git push origin feature/mi-feature`
-5. Abre un Pull Request
-
-### Convenciones de Commits
-
-```
-feat:     Nueva funcionalidad
-fix:      Corrección de bug
-docs:     Cambios en documentación
-refactor: Refactorización de código
-```
-
-## � Licencia
-
-Este proyecto está bajo la Licencia MIT.
-
-## 👨‍💻 Autor
-
-**Rafael Cly**
-- GitHub: [@RafaelCly](https://github.com/RafaelCly)
-- Repositorio: [ENAPUU](https://github.com/RafaelCly/ENAPUU)
 
 ---
 
-**Última actualización:** 11 de noviembre de 2025
-**Versión:** 1.0.0
+## 🗄️ Modelo de Base de Datos
+
+El sistema gestiona las siguientes entidades principales:
+
+### Entidades Principales
+
+- **Usuario** - Gestión de usuarios (admins, operarios, clientes)
+- **Ticket** - Registro de entrada/salida de contenedores
+- **Contenedor** - Información de contenedores
+- **Ubicacion_slot** - Slots de almacenamiento en el puerto
+- **Zona** - Zonas del puerto (Seco, Reefer, Inspección)
+- **Buque** - Buques que transportan contenedores
+- **Factura** - Facturación de servicios
+- **Pago** - Registro de pagos recibidos
+- **Cita_recojo** - Programación de retiro de contenedores
+
+> 📊 Ver diagrama completo: [MODELO_DATOS.md](./MODELO_DATOS.md)
+
+---
+
+## 🛠️ Tecnologías Utilizadas
+
+### Frontend
+
+- **React 18** - Framework UI
+- **TypeScript** - Tipado estático
+- **Vite** - Build tool ultra-rápido
+- **shadcn/ui** - Componentes UI modernos
+- **Tailwind CSS** - Estilos utility-first
+- **React Router** - Navegación
+- **TanStack Query** - State management y caching
+
+### Backend
+
+- **Supabase** - Backend-as-a-Service
+  - PostgreSQL 15 (Base de datos)
+  - API REST automática
+  - Realtime subscriptions
+  - Row Level Security (RLS)
+
+---
+
+## 📚 Scripts Disponibles
+
+```bash
+# Desarrollo
+npm run dev           # Iniciar servidor de desarrollo
+
+# Producción
+npm run build         # Crear build optimizado
+npm run preview       # Preview del build de producción
+
+# Calidad de código
+npm run lint          # Ejecutar ESLint
+```
+
+---
+
+## 🔒 Seguridad
+
+### Mejores Prácticas Implementadas
+
+- ✅ Variables de entorno para credenciales
+- ✅ `.env` en `.gitignore`
+- ✅ API Key pública (anon) en frontend
+- ⚠️ **TODO**: Implementar Row Level Security (RLS) en Supabase
+- ⚠️ **TODO**: Hash de contraseñas con bcrypt (o usar Supabase Auth)
+
+### Recomendaciones para Producción
+
+1. **Habilitar RLS** en Supabase para proteger datos
+2. **Configurar Supabase Auth** para autenticación segura
+3. **Usar variables de entorno** en tu hosting (Vercel, Netlify, etc.)
+4. **No hardcodear** credenciales en el código
+
+---
+
+## 📖 Documentación Adicional
+
+- **[GUIA_MIGRACION_SUPABASE.md](./GUIA_MIGRACION_SUPABASE.md)** - Guía paso a paso de migración
+- **[MODELO_DATOS.md](./MODELO_DATOS.md)** - Documentación completa del modelo de datos
+- **[README_SUPABASE.md](./README_SUPABASE.md)** - Resumen rápido de Supabase
+- **[consultas_utiles_supabase.sql](./consultas_utiles_supabase.sql)** - Consultas SQL útiles
+
+---
+
+## 🚀 Deploy a Producción
+
+### Vercel (Recomendado)
+
+1. Haz push de tu código a GitHub
+2. Conecta tu repo en [Vercel](https://vercel.com)
+3. Agrega las variables de entorno:
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_ANON_KEY`
+4. Deploy automático ✅
+
+### Netlify
+
+Similar a Vercel, configura las variables de entorno en el dashboard.
+
+---
+
+## 🐛 Troubleshooting
+
+### Error: "Cannot read properties of undefined"
+
+**Problema**: El archivo `.env` no se está leyendo.
+
+**Solución**:
+
+1. Verifica que el archivo se llame exactamente `.env` (no `.env.txt`)
+2. Reinicia el servidor de desarrollo (`npm run dev`)
+
+### Error: "Failed to fetch"
+
+**Problema**: Las credenciales de Supabase son incorrectas.
+
+**Solución**:
+
+1. Verifica que las variables `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` sean correctas
+2. Verifica que el proyecto de Supabase esté activo
+
+### No veo datos en las tablas
+
+**Problema**: El script SQL no se ejecutó correctamente.
+
+**Solución**:
+
+1. Ve a Supabase → Table Editor
+2. Si no ves las 12 tablas, ejecuta de nuevo `supabase_migration_complete.sql`
+
+---
+
+## 📞 Soporte
+
+Si tienes problemas:
+
+1. Revisa la [documentación de Supabase](https://supabase.com/docs)
+2. Consulta la sección Troubleshooting arriba
+3. Revisa los [issues del proyecto](https://github.com/tu-repo/issues)
+
+---
+
+## 📝 Licencia
+
+Este proyecto es privado y confidencial.
+
+---
+
+## 👥 Desarrollado por
+
+**Sistema ENAPU** - Gestión Portuaria Moderna
+
+---
+
+**¿Listo para empezar?** 🚀
+
+```bash
+npm install
+npm run dev
+```

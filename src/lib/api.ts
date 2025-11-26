@@ -1,118 +1,768 @@
-const API_BASE = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
+import { supabase, logDev } from './supabase'
+import type { PostgrestError } from '@supabase/supabase-js'
 
-// Types
-interface UserData {
-  email?: string;
-  password?: string;
-  nombre?: string;
-  role?: string;
-  [key: string]: unknown;
+// =====================================================================
+// TIPOS DE DATOS
+// =====================================================================
+
+export interface Usuario {
+  id: number
+  nombre: string
+  email: string
+  password?: string
+  telefono?: string
+  empresa?: string
+  id_rol: number
+  id_nivel_acceso: number
+  fecha_creacion?: string
+  fecha_modificacion?: string
+  activo: boolean
 }
 
-interface TicketData {
-  estado?: string;
-  usuario_id?: number;
-  [key: string]: unknown;
+export interface Ticket {
+  id: number
+  numero_ticket?: string
+  fecha_hora_entrada: string
+  fecha_hora_salida?: string
+  estado: 'Activo' | 'Finalizado' | 'Cancelado'
+  id_ubicacion: number
+  id_usuario: number
+  id_contenedor: number
+  observaciones?: string
+  fecha_modificacion?: string
 }
 
-interface ContainerData {
-  numero_contenedor?: string;
-  [key: string]: unknown;
+export interface Contenedor {
+  id: number
+  codigo_contenedor?: string
+  dimensiones: string
+  tipo: 'Seco' | 'Refrigerado' | 'Open Top' | 'Flat Rack' | 'Tanque'
+  peso: number
+  id_buque: number
+  id_cita_recojo: number
+  descripcion_carga?: string
+  temperatura_requerida?: number
+  fecha_registro?: string
 }
 
-interface SlotData {
-  disponible?: boolean;
-  [key: string]: unknown;
+export interface Zona {
+  id: number
+  nombre: string
+  capacidad: number
+  descripcion?: string
+  activa: boolean
+  fecha_creacion?: string
 }
 
-interface BuqueData {
-  nombre?: string;
-  [key: string]: unknown;
+export interface UbicacionSlot {
+  id: number
+  fila: number
+  columna: number
+  nivel: number
+  estado: 'Vacio' | 'Ocupado' | 'Reservado' | 'Mantenimiento'
+  id_zona: number
+  fecha_creacion?: string
+  fecha_modificacion?: string
 }
 
-export async function apiFetch(path: string, opts: RequestInit = {}) {
-  const url = `${API_BASE}${path.startsWith('/') ? path : `/${path}`}`;
-  const headers = {
-    'Content-Type': 'application/json',
-    ...(opts.headers || {}),
-  } as Record<string,string>;
+export interface Buque {
+  id: number
+  nombre: string
+  linea_naviera: string
+  capacidad_contenedores?: number
+  fecha_registro?: string
+  activo: boolean
+}
 
-  const resp = await fetch(url, { ...opts, headers, credentials: 'include' });
-  if (!resp.ok) {
-    const text = await resp.text();
-    throw new Error(`${resp.status} ${resp.statusText}: ${text}`);
+export interface Rol {
+  id: number
+  rol: string
+  descripcion?: string
+}
+
+export interface NivelAcceso {
+  id: number
+  nivel: string
+  descripcion?: string
+}
+
+export interface Factura {
+  id: number
+  numero_factura?: string
+  fecha_emision: string
+  monto: number
+  estado: 'Pendiente' | 'Pagada' | 'Vencida' | 'Anulada'
+  id_ticket: number
+  fecha_vencimiento?: string
+  observaciones?: string
+  fecha_creacion?: string
+}
+
+export interface Pago {
+  id: number
+  numero_operacion?: string
+  fecha_pago: string
+  medio_pago: 'Efectivo' | 'Transferencia' | 'Tarjeta' | 'Cheque' | 'Deposito'
+  monto: number
+  id_factura: number
+  comprobante_url?: string
+  fecha_registro?: string
+}
+
+export interface CitaRecojo {
+  id: number
+  fecha_inicio_horario: string
+  fecha_salida_horario: string
+  estado: 'Programada' | 'Completada' | 'Vencida' | 'Cancelada'
+  observaciones?: string
+  fecha_creacion?: string
+}
+
+// Tipo para respuestas de Supabase
+export interface SupabaseResponse<T> {
+  data: T | null
+  error: PostgrestError | null
+}
+
+// =====================================================================
+// HELPER FUNCTIONS
+// =====================================================================
+
+function handleError(error: PostgrestError | null, operation: string) {
+  if (error) {
+    logDev(`Error en ${operation}:`, error)
+    throw new Error(`${operation} falló: ${error.message}`)
   }
-  // Try parse JSON, otherwise return text
-  const ct = resp.headers.get('content-type') || '';
-  if (ct.includes('application/json')) return resp.json();
-  return resp.text();
 }
 
-// API functions for common operations
+// =====================================================================
+// API: USUARIOS
+// =====================================================================
+
+export const usuarios = {
+  // Obtener todos los usuarios
+  async list() {
+    logDev('Obteniendo lista de usuarios...')
+    const { data, error } = await supabase
+      .from('usuario')
+      .select('*')
+      .order('id', { ascending: true })
+    
+    handleError(error, 'Listar usuarios')
+    return data as Usuario[]
+  },
+
+  // Obtener un usuario por ID
+  async get(id: number) {
+    logDev(`Obteniendo usuario #${id}...`)
+    const { data, error } = await supabase
+      .from('usuario')
+      .select('*')
+      .eq('id', id)
+      .single()
+    
+    handleError(error, 'Obtener usuario')
+    return data as Usuario
+  },
+
+  // Crear un nuevo usuario
+  async create(usuario: Omit<Usuario, 'id'>) {
+    logDev('Creando nuevo usuario...', usuario)
+    const { data, error } = await supabase
+      .from('usuario')
+      .insert([usuario])
+      .select()
+      .single()
+    
+    handleError(error, 'Crear usuario')
+    return data as Usuario
+  },
+
+  // Actualizar un usuario
+  async update(id: number, usuario: Partial<Usuario>) {
+    logDev(`Actualizando usuario #${id}...`, usuario)
+    const { data, error } = await supabase
+      .from('usuario')
+      .update(usuario)
+      .eq('id', id)
+      .select()
+      .single()
+    
+    handleError(error, 'Actualizar usuario')
+    return data as Usuario
+  },
+
+  // Eliminar un usuario (soft delete - marcar como inactivo)
+  async delete(id: number) {
+    logDev(`Desactivando usuario #${id}...`)
+    const { data, error } = await supabase
+      .from('usuario')
+      .update({ activo: false })
+      .eq('id', id)
+      .select()
+      .single()
+    
+    handleError(error, 'Eliminar usuario')
+    return data as Usuario
+  },
+
+  // Login (verifica email y contraseña)
+  async login(email: string, password: string) {
+    logDev(`Intentando login para: ${email}`)
+    const { data, error } = await supabase
+      .from('usuario')
+      .select('*')
+      .eq('email', email)
+      .eq('password', password) // ⚠️ NOTA: En producción, usa bcrypt
+      .eq('activo', true)
+      .single()
+    
+    if (error || !data) {
+      throw new Error('Credenciales inválidas')
+    }
+    
+    return data as Usuario
+  },
+
+  // Obtener usuarios por rol
+  async byRole(idRol: number) {
+    logDev(`Obteniendo usuarios con rol #${idRol}...`)
+    const { data, error } = await supabase
+      .from('usuario')
+      .select('*')
+      .eq('id_rol', idRol)
+      .eq('activo', true)
+    
+    handleError(error, 'Obtener usuarios por rol')
+    return data as Usuario[]
+  },
+}
+
+// =====================================================================
+// API: TICKETS
+// =====================================================================
+
+export const tickets = {
+  // Obtener todos los tickets
+  async list() {
+    logDev('Obteniendo lista de tickets...')
+    const { data, error } = await supabase
+      .from('ticket')
+      .select(`
+        *,
+        Usuario (*),
+        Contenedor (*),
+        Ubicacion_slot (*, Zona (*))
+      `)
+      .order('fecha_hora_entrada', { ascending: false })
+    
+    handleError(error, 'Listar tickets')
+    return data
+  },
+
+  // Obtener un ticket por ID
+  async get(id: number) {
+    logDev(`Obteniendo ticket #${id}...`)
+    const { data, error } = await supabase
+      .from('ticket')
+      .select(`
+        *,
+        Usuario (*),
+        Contenedor (*),
+        Ubicacion_slot (*, Zona (*))
+      `)
+      .eq('id', id)
+      .single()
+    
+    handleError(error, 'Obtener ticket')
+    return data
+  },
+
+  // Crear un nuevo ticket
+  async create(ticket: Omit<Ticket, 'id' | 'numero_ticket'>) {
+    logDev('Creando nuevo ticket...', ticket)
+    const { data, error } = await supabase
+      .from('ticket')
+      .insert([ticket])
+      .select()
+      .single()
+    
+    handleError(error, 'Crear ticket')
+    return data
+  },
+
+  // Actualizar un ticket
+  async update(id: number, ticket: Partial<Ticket>) {
+    logDev(`Actualizando ticket #${id}...`, ticket)
+    const { data, error } = await supabase
+      .from('ticket')
+      .update(ticket)
+      .eq('id', id)
+      .select()
+      .single()
+    
+    handleError(error, 'Actualizar ticket')
+    return data
+  },
+
+  // Eliminar un ticket
+  async delete(id: number) {
+    logDev(`Eliminando ticket #${id}...`)
+    const { error } = await supabase
+      .from('ticket')
+      .delete()
+      .eq('id', id)
+    
+    handleError(error, 'Eliminar ticket')
+    return { success: true }
+  },
+
+  // Obtener tickets por estado
+  async byEstado(estado: string) {
+    logDev(`Obteniendo tickets con estado: ${estado}`)
+    const { data, error } = await supabase
+      .from('ticket')
+      .select(`
+        *,
+        Usuario (*),
+        Contenedor (*),
+        Ubicacion_slot (*, Zona (*))
+      `)
+      .eq('estado', estado)
+      .order('fecha_hora_entrada', { ascending: false })
+    
+    handleError(error, 'Obtener tickets por estado')
+    return data
+  },
+
+  // Obtener tickets por usuario
+  async byUsuario(usuarioId: number) {
+    logDev(`Obteniendo tickets del usuario #${usuarioId}`)
+    const { data, error } = await supabase
+      .from('ticket')
+      .select(`
+        *,
+        Usuario (*),
+        Contenedor (*),
+        Ubicacion_slot (*, Zona (*))
+      `)
+      .eq('id_usuario', usuarioId)
+      .order('fecha_hora_entrada', { ascending: false })
+    
+    handleError(error, 'Obtener tickets por usuario')
+    return data
+  },
+
+  // Cambiar estado de un ticket
+  async cambiarEstado(id: number, estado: 'Activo' | 'Finalizado' | 'Cancelado') {
+    logDev(`Cambiando estado del ticket #${id} a: ${estado}`)
+    const updateData: Partial<Ticket> = { estado }
+    
+    // Si se finaliza, agregar fecha de salida
+    if (estado === 'Finalizado') {
+      updateData.fecha_hora_salida = new Date().toISOString()
+    }
+    
+    const { data, error } = await supabase
+      .from('ticket')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single()
+    
+    handleError(error, 'Cambiar estado de ticket')
+    return data
+  },
+}
+
+// =====================================================================
+// API: CONTENEDORES
+// =====================================================================
+
+export const contenedores = {
+  async list() {
+    logDev('Obteniendo lista de contenedores...')
+    const { data, error } = await supabase
+      .from('contenedor')
+      .select('*, Buque (*), Cita_recojo (*)')
+      .order('id', { ascending: false })
+    
+    handleError(error, 'Listar contenedores')
+    return data
+  },
+
+  async get(id: number) {
+    logDev(`Obteniendo contenedor #${id}...`)
+    const { data, error } = await supabase
+      .from('contenedor')
+      .select('*, Buque (*), Cita_recojo (*)')
+      .eq('id', id)
+      .single()
+    
+    handleError(error, 'Obtener contenedor')
+    return data
+  },
+
+  async create(contenedor: Omit<Contenedor, 'id'>) {
+    logDev('Creando nuevo contenedor...', contenedor)
+    const { data, error } = await supabase
+      .from('contenedor')
+      .insert([contenedor])
+      .select()
+      .single()
+    
+    handleError(error, 'Crear contenedor')
+    return data
+  },
+
+  async update(id: number, contenedor: Partial<Contenedor>) {
+    logDev(`Actualizando contenedor #${id}...`, contenedor)
+    const { data, error } = await supabase
+      .from('contenedor')
+      .update(contenedor)
+      .eq('id', id)
+      .select()
+      .single()
+    
+    handleError(error, 'Actualizar contenedor')
+    return data
+  },
+
+  async delete(id: number) {
+    logDev(`Eliminando contenedor #${id}...`)
+    const { error } = await supabase
+      .from('contenedor')
+      .delete()
+      .eq('id', id)
+    
+    handleError(error, 'Eliminar contenedor')
+    return { success: true }
+  },
+}
+
+// =====================================================================
+// API: ZONAS
+// =====================================================================
+
+export const zonas = {
+  async list() {
+    logDev('Obteniendo lista de zonas...')
+    const { data, error } = await supabase
+      .from('zona')
+      .select('*')
+      .eq('activa', true)
+      .order('id', { ascending: true })
+    
+    handleError(error, 'Listar zonas')
+    return data as Zona[]
+  },
+
+  async get(id: number) {
+    logDev(`Obteniendo zona #${id}...`)
+    const { data, error } = await supabase
+      .from('zona')
+      .select('*')
+      .eq('id', id)
+      .single()
+    
+    handleError(error, 'Obtener zona')
+    return data as Zona
+  },
+}
+
+// =====================================================================
+// API: UBICACION_SLOT
+// =====================================================================
+
+export const slots = {
+  async list() {
+    logDev('Obteniendo lista de slots...')
+    const { data, error } = await supabase
+      .from('ubicacion_slot')
+      .select('*, Zona (*)')
+      .order('id', { ascending: true })
+    
+    handleError(error, 'Listar slots')
+    return data
+  },
+
+  async get(id: number) {
+    logDev(`Obteniendo slot #${id}...`)
+    const { data, error } = await supabase
+      .from('ubicacion_slot')
+      .select('*, Zona (*)')
+      .eq('id', id)
+      .single()
+    
+    handleError(error, 'Obtener slot')
+    return data
+  },
+
+  async update(id: number, slot: Partial<UbicacionSlot>) {
+    logDev(`Actualizando slot #${id}...`, slot)
+    const { data, error } = await supabase
+      .from('ubicacion_slot')
+      .update(slot)
+      .eq('id', id)
+      .select()
+      .single()
+    
+    handleError(error, 'Actualizar slot')
+    return data
+  },
+
+  // Obtener slots disponibles (vacíos)
+  async disponibles() {
+    logDev('Obteniendo slots disponibles...')
+    const { data, error } = await supabase
+      .from('ubicacion_slot')
+      .select('*, Zona (*)')
+      .eq('estado', 'Vacio')
+      .order('id', { ascending: true })
+    
+    handleError(error, 'Obtener slots disponibles')
+    return data
+  },
+}
+
+// =====================================================================
+// API: BUQUES
+// =====================================================================
+
+export const buques = {
+  async list() {
+    logDev('Obteniendo lista de buques...')
+    const { data, error } = await supabase
+      .from('buque')
+      .select('*')
+      .eq('activo', true)
+      .order('nombre', { ascending: true })
+    
+    handleError(error, 'Listar buques')
+    return data as Buque[]
+  },
+
+  async get(id: number) {
+    logDev(`Obteniendo buque #${id}...`)
+    const { data, error } = await supabase
+      .from('buque')
+      .select('*')
+      .eq('id', id)
+      .single()
+    
+    handleError(error, 'Obtener buque')
+    return data as Buque
+  },
+
+  async create(buque: Omit<Buque, 'id'>) {
+    logDev('Creando nuevo buque...', buque)
+    const { data, error } = await supabase
+      .from('buque')
+      .insert([buque])
+      .select()
+      .single()
+    
+    handleError(error, 'Crear buque')
+    return data as Buque
+  },
+}
+
+// =====================================================================
+// API: ROLES
+// =====================================================================
+
+export const roles = {
+  async list() {
+    logDev('Obteniendo lista de roles...')
+    const { data, error } = await supabase
+      .from('rol')
+      .select('*')
+      .order('id', { ascending: true })
+    
+    handleError(error, 'Listar roles')
+    return data as Rol[]
+  },
+}
+
+// =====================================================================
+// API: NIVELES DE ACCESO
+// =====================================================================
+
+export const niveles = {
+  async list() {
+    logDev('Obteniendo lista de niveles de acceso...')
+    const { data, error } = await supabase
+      .from('nivel_acceso')
+      .select('*')
+      .order('id', { ascending: true })
+    
+    handleError(error, 'Listar niveles de acceso')
+    return data as NivelAcceso[]
+  },
+}
+
+// =====================================================================
+// API: FACTURAS
+// =====================================================================
+
+export const facturas = {
+  async list() {
+    logDev('Obteniendo lista de facturas...')
+    const { data, error } = await supabase
+      .from('factura')
+      .select('*, Ticket (*)')
+      .order('fecha_emision', { ascending: false })
+    
+    handleError(error, 'Listar facturas')
+    return data
+  },
+
+  async get(id: number) {
+    logDev(`Obteniendo factura #${id}...`)
+    const { data, error } = await supabase
+      .from('factura')
+      .select('*, Ticket (*)')
+      .eq('id', id)
+      .single()
+    
+    handleError(error, 'Obtener factura')
+    return data
+  },
+
+  async create(factura: Omit<Factura, 'id' | 'numero_factura'>) {
+    logDev('Creando nueva factura...', factura)
+    const { data, error } = await supabase
+      .from('factura')
+      .insert([factura])
+      .select()
+      .single()
+    
+    handleError(error, 'Crear factura')
+    return data
+  },
+
+  async byEstado(estado: string) {
+    logDev(`Obteniendo facturas con estado: ${estado}`)
+    const { data, error } = await supabase
+      .from('factura')
+      .select('*, Ticket (*)')
+      .eq('estado', estado)
+      .order('fecha_emision', { ascending: false })
+    
+    handleError(error, 'Obtener facturas por estado')
+    return data
+  },
+}
+
+// =====================================================================
+// API: CITAS DE RECOJO
+// =====================================================================
+
+export const citas = {
+  async list() {
+    logDev('Obteniendo lista de citas de recojo...')
+    const { data, error } = await supabase
+      .from('cita_recojo')
+      .select('*')
+      .order('fecha_inicio_horario', { ascending: false })
+    
+    handleError(error, 'Listar citas de recojo')
+    return data as CitaRecojo[]
+  },
+
+  async programadas() {
+    logDev('Obteniendo citas programadas...')
+    const { data, error } = await supabase
+      .from('cita_recojo')
+      .select('*')
+      .eq('estado', 'Programada')
+      .order('fecha_inicio_horario', { ascending: true })
+    
+    handleError(error, 'Obtener citas programadas')
+    return data as CitaRecojo[]
+  },
+}
+
+// =====================================================================
+// EXPORTAR API COMPLETO
+// =====================================================================
+
 export const api = {
-  // Usuarios
-  usuarios: {
-    list: () => apiFetch('/usuarios/'),
-    get: (id: number) => apiFetch(`/usuarios/${id}/`),
-    create: (data: UserData) => apiFetch('/usuarios/', { method: 'POST', body: JSON.stringify(data) }),
-    update: (id: number, data: UserData) => apiFetch(`/usuarios/${id}/`, { method: 'PUT', body: JSON.stringify(data) }),
-    delete: (id: number) => apiFetch(`/usuarios/${id}/`, { method: 'DELETE' }),
-    login: (email: string, password: string) => 
-      apiFetch('/usuarios/login/', { method: 'POST', body: JSON.stringify({ email, password }) }),
-    byRole: (role: string) => apiFetch(`/usuarios/by_role/?role=${role}`),
-  },
+  usuarios,
+  tickets,
+  contenedores,
+  zonas,
+  slots,
+  buques,
+  roles,
+  niveles,
+  facturas,
+  citas,
+}
 
-  // Tickets
-  tickets: {
-    list: () => apiFetch('/tickets/'),
-    get: (id: number) => apiFetch(`/tickets/${id}/`),
-    create: (data: TicketData) => apiFetch('/tickets/', { method: 'POST', body: JSON.stringify(data) }),
-    update: (id: number, data: TicketData) => apiFetch(`/tickets/${id}/`, { method: 'PATCH', body: JSON.stringify(data) }),
-    delete: (id: number) => apiFetch(`/tickets/${id}/`, { method: 'DELETE' }),
-    byEstado: (estado: string) => apiFetch(`/tickets/by_estado/?estado=${estado}`),
-    byUsuario: (usuarioId: number) => apiFetch(`/tickets/by_usuario/?usuario_id=${usuarioId}`),
-    cambiarEstado: (id: number, estado: string) => 
-      apiFetch(`/tickets/${id}/cambiar_estado/`, { method: 'PATCH', body: JSON.stringify({ estado }) }),
-  },
+// =====================================================================
+// FUNCIÓN DE COMPATIBILIDAD TEMPORAL apiFetch
+// =====================================================================
+// Nota: Esta función existe para mantener compatibilidad con componentes antiguos
+// que aún usan apiFetch() en lugar de api.*
+// Gradualmente deberías migrar todos los componentes a usar api.*
+// 
+// Ejemplo de migración:
+//   Antes: await apiFetch('/tickets/')
+//   Ahora: await api.tickets.list()
+// =====================================================================
 
-  // Contenedores
-  contenedores: {
-    list: () => apiFetch('/contenedores/'),
-    get: (id: number) => apiFetch(`/contenedores/${id}/`),
-    create: (data: ContainerData) => apiFetch('/contenedores/', { method: 'POST', body: JSON.stringify(data) }),
-    update: (id: number, data: ContainerData) => apiFetch(`/contenedores/${id}/`, { method: 'PUT', body: JSON.stringify(data) }),
-    delete: (id: number) => apiFetch(`/contenedores/${id}/`, { method: 'DELETE' }),
-  },
+/**
+ * @deprecated Usa `api.*` en lugar de apiFetch
+ * Esta función solo existe para compatibilidad temporal
+ */
+export async function apiFetch(path: string, opts: RequestInit = {}) {
+  console.warn(
+    `⚠️  apiFetch() está deprecated. Usa api.* en su lugar.` +
+    `\nPath llamado: ${path}` +
+    `\nVer: GUIA_ACTUALIZACION_COMPONENTES.md`
+  )
 
-  // Zonas
-  zonas: {
-    list: () => apiFetch('/zonas/'),
-    get: (id: number) => apiFetch(`/zonas/${id}/`),
-  },
+  try {
+    // Mapeo básico de endpoints antiguos a nuevas funciones
+    if (path === '/tickets/' && opts.method === 'GET' || !opts.method) {
+      return await tickets.list()
+    }
+    if (path === '/usuarios/' && !opts.method) {
+      return await usuarios.list()
+    }
+    if (path === '/ubicaciones-slot/' || path === '/slots/') {
+      return await slots.list()
+    }
+    if (path === '/zonas/') {
+      return await zonas.list()
+    }
+    if (path === '/contenedores/') {
+      return await contenedores.list()
+    }
+    if (path === '/buquesbuques/' || path === '/buques/') {
+      return await buques.list()
+    }
+    if (path === '/roles/') {
+      return await roles.list()
+    }
+    if (path === '/niveles/') {
+      return await niveles.list()
+    }
+    if (path === '/citas-recojo/') {
+      return await citas.list()
+    }
 
-  // Slots
-  slots: {
-    list: () => apiFetch('/slots/'),
-    get: (id: number) => apiFetch(`/slots/${id}/`),
-    update: (id: number, data: SlotData) => apiFetch(`/slots/${id}/`, { method: 'PATCH', body: JSON.stringify(data) }),
-  },
+    // Operaciones UPDATE/DELETE/CREATE requieren más lógica
+    throw new Error(
+      `apiFetch no soporta este endpoint/método: ${path} ${opts.method || 'GET'}.\n` +
+      `Por favor, migra este componente a usar api.* según GUIA_ACTUALIZACION_COMPONENTES.md`
+    )
+  } catch (error) {
+    console.error('Error en apiFetch (deprecated):', error)
+    throw error
+  }
+}
 
-  // Buques
-  buques: {
-    list: () => apiFetch('/buques/'),
-    get: (id: number) => apiFetch(`/buques/${id}/`),
-    create: (data: BuqueData) => apiFetch('/buques/', { method: 'POST', body: JSON.stringify(data) }),
-  },
+export default api
 
-  // Roles
-  roles: {
-    list: () => apiFetch('/roles/'),
-  },
-
-  // Niveles de acceso
-  niveles: {
-    list: () => apiFetch('/niveles/'),
-  },
-};
-
-export default apiFetch;
