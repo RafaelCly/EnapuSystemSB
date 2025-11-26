@@ -267,13 +267,13 @@ const Login = () => {
                 </div>
 
                 <div className="mt-2 p-3 bg-gray-50 rounded-lg text-sm text-gray-600">
-                  <div className="font-medium mb-1">Credenciales de prueba:</div>
+                  <div className="font-medium mb-1">Contraseñas de prueba:</div>
                   <ul className="list-disc list-inside text-xs">
-                    <li>Admin: admin@enapu.com / admin123</li>
-                    <li>Operario: operario@enapu.com / operario123</li>
-                    <li>Cliente: cliente@empresa.com / cliente123</li>
+                    <li>Admin: admin123</li>
+                    <li>Operario: operario123</li>
+                    <li>Cliente: cliente123</li>
                   </ul>
-                  <div className="mt-1 italic text-xs text-gray-500">Usa las credenciales correctas de la BD</div>
+                  <div className="mt-1 italic text-xs text-gray-500">Usa el correo correspondiente a tu usuario</div>
                 </div>
               </form>
             </div>
