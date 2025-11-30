@@ -44,3 +44,4 @@ backend/.env.local
 
 # logs
 *.log
+.env.example

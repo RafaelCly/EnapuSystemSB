@@ -27,6 +27,7 @@ import RegisterExit from "@/pages/operator/RegisterExit";
 import TurnMonitor from "@/pages/operator/TurnMonitor";
 import QuickContainerQuery from "@/pages/operator/QuickContainerQuery";
 import ScanTicket from "@/pages/operator/ScanTicket";
+import TestConnection from "./pages/TestConnection";
 
 const queryClient = new QueryClient();
 
@@ -38,6 +39,7 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Login />} />
+          <Route path="/test-connection" element={<TestConnection />} />
           <Route path="/client/dashboard" element={<ClientDashboard />} />
           <Route path="/client/new-ticket" element={<NewTicket />} />
           <Route path="/client/my-tickets" element={<MyTickets />} />
